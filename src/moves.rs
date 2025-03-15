@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::fmt;
 use crate::piece::{Piece, PieceType, PieceColor, PieceRef};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Position {
     pub x: usize,
     pub y: usize
@@ -57,9 +57,7 @@ impl fmt::Debug for Move {
 
         let file_char = "abcdefgh".chars().nth(self.to.x).unwrap();
 
-        write!(f, "{}{}{}", piece_char, file_char, 8 - self.to.y);
-
-        Ok(())
+        write!(f, "{}{}{}", piece_char, file_char, 8 - self.to.y)
     }
 }
 

@@ -122,10 +122,11 @@ impl BasePiece {
         if move_.move_type.contains(&MoveType::Capture) && move_.captured.as_ref().is_some() {
             let captured = move_.captured.clone().unwrap();
 
-            let base = captured.borrow().get_base();
+            let borrow = captured.borrow();
+            let base = borrow.get_base();
             let pos = base.pos.clone();
 
-            let dead_piece = Rc::new(RefCell::new(Dead::new(base.board, base.color, Position { x: 8, y: 8 }, base.index)));
+            let dead_piece = Rc::new(RefCell::new(Dead::new(base.board.clone(), base.color, Position { x: 8, y: 8 }, base.index)));
 
             self.board.pieces.remove(base.index);
             self.board.pieces.insert(base.index, dead_piece);
@@ -142,12 +143,13 @@ impl BasePiece {
         self.move_to(move_.to.x, move_.to.y, true);
 
         if move_.move_type.contains(&MoveType::Promotion) && move_.promote_to.as_ref().is_some() {
-            self.promote_to(move_.promote_to.clone());
+            self.promote_to(move_.promote_to.clone().unwrap());
         }
 
         if self.piece_type == PieceType::King && move_.move_type.contains(&MoveType::Castling) && move_.with.as_ref().is_some() {
-            let mut borrow = move_.with.unwrap().borrow_mut();
-            let mut base = borrow.get_base_mut();
+            let with_copy = move_.with.clone().unwrap();
+            let mut borrow = with_copy.borrow_mut();
+            let base = borrow.get_base_mut();
             base.move_(Move {
                 from: base.pos.clone(),
                 to: Position { x: if self.pos.x == 2 { 3 } else { 5 }, y: self.pos.y },
@@ -162,11 +164,9 @@ impl BasePiece {
         }
     }
 
-    pub fn move_to(&mut self, x: usize, y: usize, force: bool) {
-        if self.index == -1 { return };
-        
+    pub fn move_to(&mut self, x: usize, y: usize, force: bool) -> bool {
         let pos = self.pos;
-        let current_board_pos = self.board.board[pos.y][pos.x];
+        let current_board_pos = self.board.board[pos.x][pos.y];
         let current_piece = self.board.pieces.get(current_board_pos as usize).and_then(|p| Some(p.clone()));
 
         if let Some(piece_ref) = current_piece {
@@ -174,20 +174,22 @@ impl BasePiece {
             if (!force && current_board_pos != -1) || piece.get_base().piece_type == PieceType::King { return false };
         }
 
-        self.board.board[pos.y][pos.x] = -1;
-        self.board.board[y][x] = self.index;
+        self.board.board[pos.x][pos.y] = -1;
+        self.board.board[x][y] = self.index as isize;
 
         self.pos = Position { x, y };
 
         self.check_control();
 
-        for e in self.board.control_table[pos.y][pos.x] {
+        for e in self.board.control_table[pos.y][pos.x].clone() {
             self.board.pieces[e.index].borrow_mut().get_base_mut().check_control();
         }
 
-        for e in self.board.control_table[y][x] {
+        for e in self.board.control_table[y][x].clone() {
             self.board.pieces[e.index].borrow_mut().get_base_mut().check_control();
         }
+
+        true
     }
 
     pub fn check_control(&mut self) {

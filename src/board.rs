@@ -146,11 +146,11 @@ impl Board {
 
         let ranks: Vec<&str> = position.split('/').collect();
 
-        for (i, rank) in ranks.iter().enumerate() {
-            let mut j = 0;
+        for (j, rank) in ranks.iter().enumerate() {
+            let mut i = 0;
             for char in rank.chars().into_iter() {
                 if char.is_digit(10) {
-                    j += char.to_digit(10).unwrap() as usize - 1;
+                    i += char.to_digit(10).unwrap() as usize - 1;
                 } else {
                     let color = if "PNBRQK".contains(char) {
                         PieceColor::White
@@ -176,7 +176,7 @@ impl Board {
                         board.kings.insert(piece.borrow().get_base().color.clone(), Some(piece.clone()));
                     }
                 }
-                j += 1;
+                i += 1;
             }
         }
 
@@ -279,8 +279,8 @@ impl Board {
 
     pub fn get_piece_at(&self, rank: usize, file: usize) -> Option<PieceRef> {
         if !Board::in_bounds(rank, file) { return None; }
-        if self.board[rank][file] > -1 {
-            Some(self.pieces[self.board[rank][file] as usize].clone()) 
+        if self.board[file][rank] > -1 {
+            Some(self.pieces[self.board[file][rank] as usize].clone()) 
         } else {
             None
         }
@@ -310,7 +310,7 @@ impl Board {
     }
 
     pub fn is_empty(&self, rank: usize, file: usize) -> bool {
-        self.board[rank][file] == -1
+        self.board[file][rank] == -1
     }
 
     pub fn is_pinned(&self, rank: usize, file: usize) -> bool {
@@ -371,10 +371,10 @@ impl fmt::Debug for Board {
             write!(f, "{} ", "abcdefgh".chars().nth(i).unwrap());
         }
         write!(f, "\n");
-        for row in 0..8 {
-            write!(f, "{} ", 8 - row);
-            for col in 0..8 {
-                let piece = self.board[row][col];
+        for rank in 0..8 {
+            write!(f, "{} ", 8 - rank);
+            for file in 0..8 {
+                let piece = self.board[file][rank];
                 if piece == -1 {
                     write!(f, ". ");
                 } else {
