@@ -133,7 +133,7 @@ impl Board {
             moves_cache: HashMap::new(),
             move_availability: HashMap::new(),
             check: HashMap::new(),
-            hash_table: vec![],
+            hash_table: Vec::with_capacity(782),
             hash: i64::MAX
         }
     }
@@ -237,42 +237,44 @@ impl Board {
     }
 
     pub fn get_legal_moves(&mut self, piece_index: usize) -> Vec<Move> {
-        if let Some(piece) = self.pieces.get_mut(&piece_index).cloned() {
-            let legal_moves_cache = self.moves_cache.get_mut(&piece_index);
-            if legal_moves_cache.as_ref().is_some() && 
-               (legal_moves_cache.as_ref().unwrap().len() > 0 || 
-                    !self.move_availability.get(&piece_index).or_else(|| Some(&false)).unwrap()) { 
-                return legal_moves_cache.unwrap().clone()
-            };
-        
-            let moves = match piece.piece_type {
-                PieceType::Pawn => get_legal_moves_pawn(piece, self),
-                PieceType::Bishop => get_legal_moves_bishop(piece, self),
-                PieceType::Knight => get_legal_moves_knight(piece, self),
-                PieceType::Rook => get_legal_moves_rook(piece, self),
-                PieceType::Queen => get_legal_moves_queen(piece, self),
-                PieceType::King => get_legal_moves_king(&piece, self)
-            };
-
-            self.moves_cache.insert(piece_index, moves.clone());
-            self.move_availability.insert(piece_index, moves.len() > 0);
-
-            moves
-        } else {
-            vec![]
+        if !self.pieces.contains_key(&piece_index) {
+            return Vec::with_capacity(0);
         }
+
+        if let Some(cached_moves) = self.moves_cache.get(&piece_index) {
+            if !cached_moves.is_empty() ||
+               !self.move_availability.get(&piece_index).unwrap_or(&false) {
+                return cached_moves.clone();
+            }
+        }
+
+        let piece_copy = self.pieces.get(&piece_index).unwrap().clone();
+        
+        let moves = match piece_copy.piece_type {
+            PieceType::Pawn => get_legal_moves_pawn(&piece_copy, self),
+            PieceType::Bishop => get_legal_moves_bishop(&piece_copy, self),
+            PieceType::Knight => get_legal_moves_knight(&piece_copy, self),
+            PieceType::Rook => get_legal_moves_rook(&piece_copy, self),
+            PieceType::Queen => get_legal_moves_queen(&piece_copy, self),
+            PieceType::King => get_legal_moves_king(&piece_copy, self)
+        };
+
+        self.moves_cache.insert(piece_index, moves.clone());
+        self.move_availability.insert(piece_index, moves.len() > 0);
+
+        moves
     }
 
-    pub fn get_pins(&mut self, piece_index: usize) -> Vec<Pin> {
-        if let Some(piece) = self.pieces.get_mut(&piece_index).cloned() {
+    pub fn get_pins(&self, piece_index: usize) -> Vec<Pin> {
+        if let Some(piece) = self.pieces.get(&piece_index) {
             match piece.piece_type {
                 PieceType::Bishop => get_pins_bishop(piece, self),
                 PieceType::Rook => get_pins_rook(piece, self),
                 PieceType::Queen => get_pins_queen(piece, self),
-                _ => vec![]
+                _ => Vec::with_capacity(0)
             }
         } else {
-            vec![]
+            Vec::with_capacity(0)
         }
     }
 
@@ -374,8 +376,8 @@ impl Board {
         new_board
     }
 
-    pub fn get_controlled_squares(&mut self, piece_index: usize) -> Vec<Control> {
-        if let Some(piece) = self.pieces.get_mut(&piece_index).cloned() {
+    pub fn get_controlled_squares(&self, piece_index: usize) -> Vec<Control> {
+        if let Some(piece) = self.pieces.get(&piece_index) {
             match piece.piece_type {
                 PieceType::Pawn => get_controlled_squares_pawn(piece, self),
                 PieceType::Knight => get_controlled_squares_knight(piece, self),
@@ -385,7 +387,7 @@ impl Board {
                 PieceType::King => get_controlled_squares_king(piece, self),
             }
         } else {
-            vec![]
+            Vec::with_capacity(0)
         }
     }
 
@@ -398,7 +400,7 @@ impl Board {
             self.clear_control(piece_index);
             return;
         }
-        let piece = self.pieces.get(&piece_index).unwrap().clone();
+        let piece = self.pieces.get(&piece_index).unwrap();
         let controlled_squares = self.get_controlled_squares(piece_index);
 
         let king = self.get_king(piece.color.opposite()).unwrap();
@@ -451,12 +453,12 @@ impl Board {
         self.check_control(piece_index);
     }
 
-    pub fn get_king(&mut self, color: PieceColor) -> Option<Piece> {
+    pub fn get_king(&self, color: PieceColor) -> Option<Piece> {
         if self.kings.contains_key(&color) {
             return self.kings.get(&color).unwrap().clone()
         }
         let king: Option<Piece> = self.pieces.values().find(|p| p.piece_type == PieceType::King && p.color == color).cloned();
-        self.kings.insert(color, king.clone());
+        
         king
     }
 
@@ -492,14 +494,14 @@ impl Board {
             if info.double_checked {
                 let moves: Vec<Move> = match self.get_king(color) {
                     Some(k) => self.get_legal_moves(k.index),
-                    None => vec![]
+                    None => Vec::with_capacity(0)
                 };
                 self.total_moves_cache.insert(color, moves.clone());
                 return moves;
             } else if info.checked {
                 let moves: Vec<Move> = self.get_block_moves(color).clone().into_iter().chain(match self.get_king(color) {
                     Some(k) => self.get_legal_moves(k.index),
-                    None => vec![]
+                    None => Vec::with_capacity(0)
                 }).collect();
                 self.total_moves_cache.insert(color, moves.clone());
                 return moves;
@@ -562,7 +564,7 @@ impl Board {
     }
 
     pub fn gen_hash(&mut self) {
-        let mut hash_array = vec![];
+        let mut hash_array = Vec::with_capacity(782);
         let mut hash = i64::MAX;
 
         let mut rng = StdRng::seed_from_u64(9009);

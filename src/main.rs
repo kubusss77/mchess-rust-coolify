@@ -13,7 +13,7 @@ fn main() {
 
     test_board.check_control_all();
 
-    println!("{:?}", get_controlled_squares_pawn(test_board.get_piece(3).unwrap().to_owned(), &mut test_board));
+    println!("{:?}", get_controlled_squares_pawn(test_board.get_piece(3).unwrap(), &test_board));
 
     println!("{:?}", evaluate(&mut test_board));
 

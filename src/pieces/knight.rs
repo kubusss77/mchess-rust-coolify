@@ -13,16 +13,16 @@ const KNIGHT_DIRECTIONS: [Vector; 8] = [
     Vector { x: 1, y: -2 }
 ];
 
-pub fn get_legal_moves_knight(piece: Piece, board: &mut Board) -> Vec<Move> {
+pub fn get_legal_moves_knight(piece: &Piece, board: &Board) -> Vec<Move> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
     
     let check_info = board.check.get(&piece.color);
 
-    if board.is_pinned(rank, file) { return vec![] };
-    if check_info.is_some_and(|c| c.double_checked) { return vec![] };
+    if board.is_pinned(rank, file) { return Vec::with_capacity(0) };
+    if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
 
-    let mut moves: Vec<Move> = vec![];
+    let mut moves: Vec<Move> = Vec::with_capacity(8);
 
     for dir in KNIGHT_DIRECTIONS {
         let t_file = Position::clamp(file as isize + dir.x);
@@ -54,11 +54,11 @@ pub fn get_legal_moves_knight(piece: Piece, board: &mut Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_knight(piece: Piece, board: &mut Board) -> Vec<Control> {
+pub fn get_controlled_squares_knight(piece: &Piece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 
-    let mut controlled: Vec<Control> = vec![];
+    let mut controlled: Vec<Control> = Vec::with_capacity(8);
 
     for dir in KNIGHT_DIRECTIONS {
         let t_file = Position::clamp(file as isize + dir.x);

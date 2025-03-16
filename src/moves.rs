@@ -94,25 +94,16 @@ impl fmt::Debug for Move {
     }
 }
 
-impl Hash for Move {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.from.hash(state);
-        self.to.hash(state);
-        self.move_type.len().hash(state);
-
-        if let Some(captured) = &self.captured {
-            captured.piece_type.hash(state)
-        }
-        if let Some(promote_to) = &self.promote_to {
-            promote_to.hash(state)
-        }
-        if let Some(with) = &self.with {
-            with.piece_type.hash(state)
-        }
-
-        self.piece_index.hash(state);
-        self.piece_color.hash(state);
-        self.piece_type.hash(state);
+impl Move {
+    pub fn hash(&self) -> usize {
+        let mut hasher = DefaultHasher::new();
+        self.from.hash(&mut hasher);
+        self.to.hash(&mut hasher);
+        self.promote_to.hash(&mut hasher);
+        self.piece_index.hash(&mut hasher);
+        self.piece_color.hash(&mut hasher);
+        self.piece_type.hash(&mut hasher);
+        hasher.finish() as usize
     }
 }
 

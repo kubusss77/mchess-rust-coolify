@@ -2,7 +2,7 @@ use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Position};
 use crate::piece::{Piece, PieceColor, PieceType};
 
-pub fn get_legal_moves_pawn(piece: Piece, board: &mut Board) -> Vec<Move> {
+pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 
@@ -10,15 +10,15 @@ pub fn get_legal_moves_pawn(piece: Piece, board: &mut Board) -> Vec<Move> {
 
     let check_info = board.check.get(&piece.color);
 
-    if board.is_pinned(rank, file) { return vec![] };
-    if check_info.is_some_and(|c| c.double_checked) { return vec![] };
+    if board.is_pinned(rank, file) { return Vec::with_capacity(0) };
+    if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
 
     let promotion_rank = if piece.color == PieceColor::White { 7 } else { 0 };
     let initial_rank = if piece.color == PieceColor::White { 6 } else { 2 };
     
     let advanced_rank = Position::clamp(rank as isize + dir);
 
-    let mut moves: Vec<Move> = vec![];
+    let mut moves: Vec<Move> = Vec::with_capacity(12);
 
     if board.is_empty(advanced_rank, file) {
         if advanced_rank == promotion_rank {
@@ -121,13 +121,13 @@ pub fn get_legal_moves_pawn(piece: Piece, board: &mut Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_pawn(piece: Piece, board: &mut Board) -> Vec<Control> {
+pub fn get_controlled_squares_pawn(piece: &Piece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 
     let dir = if piece.color == PieceColor::White { -1 } else { 1 };
 
-    let mut controlled: Vec<Control> = vec![];
+    let mut controlled: Vec<Control> = Vec::with_capacity(2);
 
     for square in [-1, 1] {
         let t_file = Position::clamp(file as isize + square);

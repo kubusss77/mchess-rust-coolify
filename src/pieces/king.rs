@@ -21,8 +21,8 @@ fn can_move_multifile(piece: &Piece, board: &Board, rank: usize, files: Vec<isiz
     cond
 }
 
-pub fn get_legal_moves_king(piece: &Piece, board: &mut Board) -> Vec<Move> {
-    let mut moves: Vec<Move> = vec![];
+pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
+    let mut moves: Vec<Move> = Vec::with_capacity(8);
     let file = piece.pos.x;
     let rank = piece.pos.y;
     
@@ -88,11 +88,11 @@ pub fn get_legal_moves_king(piece: &Piece, board: &mut Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_king(piece: Piece, board: &mut Board) -> Vec<Control> {
+pub fn get_controlled_squares_king(piece: &Piece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 
-    let mut controlled: Vec<Control> = vec![];
+    let mut controlled: Vec<Control> = Vec::with_capacity(8);
 
     for i in -1..=1 {
         for j in -1..=1 {

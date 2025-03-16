@@ -6,7 +6,8 @@ use std::collections::HashMap;
 
 pub struct Chess {
     evaluation_cache: HashMap<i64, EvaluationResult>,
-    move_evaluation_cache: HashMap<Move, f64>
+    move_evaluation_cache: HashMap<usize, f64>,
+    transposition_table: HashMap<i64, (f64, u8, Vec<Move>)>
 }
 
 #[derive(Debug)]
@@ -19,11 +20,12 @@ impl Chess {
     pub fn new() -> Self {
         Chess {
             evaluation_cache: HashMap::new(),
-            move_evaluation_cache: HashMap::new()
+            move_evaluation_cache: HashMap::new(),
+            transposition_table: HashMap::new()
         }
     }
 
-    pub fn search(&mut self, board: &mut Board, depth: usize, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
+    pub fn search(&mut self, board: &mut Board, depth: u8, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
             return SearchResult {
@@ -99,22 +101,33 @@ impl Chess {
     }
 
     pub fn evaluate_move(&mut self, m: &Move, board: &mut Board) -> f64 {
-        if self.move_evaluation_cache.contains_key(&m) {
-            return *self.move_evaluation_cache.get(&m).unwrap()
+        if self.move_evaluation_cache.contains_key(&m.hash()) {
+            return *self.move_evaluation_cache.get(&m.hash()).unwrap()
         }
         let value = evaluate_move(m, board);
 
-        self.move_evaluation_cache.insert(m.clone(), value);
+        self.move_evaluation_cache.insert(m.hash(), value);
 
         value
     }
 
     pub fn sort(&mut self, moves: Vec<Move>, board: &mut Board) -> Vec<Move> {
-        let mut clone = moves.clone();
-        clone.sort_by(|a: &Move, b: &Move| {
-            self.evaluate_move(b, board).total_cmp(&self.evaluate_move(a, board))
-        });
+        let scores = moves.iter()
+            .map(|m| self.evaluate_move(m, board));
+        
+        let mut indices: Vec<(usize, f64)> = scores
+            .enumerate()
+            .map(|(i, score)| (i, score))
+            .collect();
 
-        clone
+        indices.sort_by(|(_, a), (_, b)| b.total_cmp(a));
+
+        let mut result: Vec<Move> = Vec::with_capacity(moves.len());
+
+        for (i, _) in indices {
+            result.push(moves[i].clone());
+        }
+        
+        result
     }
 }
