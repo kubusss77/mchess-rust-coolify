@@ -1,7 +1,5 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::fmt;
-use crate::piece::{Piece, PieceType, PieceColor, PieceRef};
+use crate::piece::{PieceType, PieceColor, Piece};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Position {
@@ -13,12 +11,39 @@ impl Position {
     pub fn clamp(_n: isize) -> usize {
         if _n < 0 { 10 } else { _n as usize }
     }
+
+    pub fn to_vector(&self) -> Vector {
+        Vector {
+            x: self.x as isize,
+            y: self.y as isize
+        }
+    }
+}
+
+impl PartialEq for Position {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Vector {
     pub x: isize,
     pub y: isize
+}
+
+impl Vector {
+    pub fn in_direction(&self, _pos1: Position, _pos2: Position) -> bool {
+        let pos1 = _pos1.to_vector();
+        let pos2 = _pos2.to_vector();
+        pos2.x * self.x >= pos1.x * self.x && pos2.y * self.y >= pos1.y * self.y
+    }
+}
+
+impl PartialEq for Vector {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,12 +60,12 @@ pub struct Move {
     pub from: Position,
     pub to: Position,
     pub move_type: Vec<MoveType>,
-    pub captured: Option<PieceRef>,
+    pub captured: Option<Piece>,
     pub promote_to: Option<PieceType>,
     pub piece_index: usize,
     pub piece_color: PieceColor,
     pub piece_type: PieceType,
-    pub with: Option<PieceRef>
+    pub with: Option<Piece>
 }
 
 impl fmt::Debug for Move {
@@ -51,8 +76,7 @@ impl fmt::Debug for Move {
             PieceType::Bishop => "B",
             PieceType::Rook => "R",
             PieceType::Queen => "Q",
-            PieceType::King => "K",
-            _ => ""
+            PieceType::King => "K"
         };
 
         let file_char = "abcdefgh".chars().nth(self.to.x).unwrap();
