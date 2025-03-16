@@ -1,13 +1,22 @@
 use std::fmt;
 use crate::piece::{PieceType, PieceColor, Piece};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 pub struct Position {
     pub x: usize,
     pub y: usize
 }
 
 impl Position {
+    pub fn from(x: isize, y: isize) -> Position {
+        Position {
+            x: Position::clamp(x),
+            y: Position::clamp(y)
+        }
+    }
+
     pub fn clamp(_n: isize) -> usize {
         if _n < 0 { 10 } else { _n as usize }
     }
@@ -84,6 +93,44 @@ impl fmt::Debug for Move {
         write!(f, "{}{}{}", piece_char, file_char, 8 - self.to.y)
     }
 }
+
+impl Hash for Move {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.from.hash(state);
+        self.to.hash(state);
+        self.move_type.len().hash(state);
+
+        if let Some(captured) = &self.captured {
+            captured.piece_type.hash(state)
+        }
+        if let Some(promote_to) = &self.promote_to {
+            promote_to.hash(state)
+        }
+        if let Some(with) = &self.with {
+            with.piece_type.hash(state)
+        }
+
+        self.piece_index.hash(state);
+        self.piece_color.hash(state);
+        self.piece_type.hash(state);
+    }
+}
+
+impl PartialEq for Move {
+    fn eq(&self, other: &Self) -> bool {
+        self.from == other.from &&
+        self.to == other.from &&
+        self.move_type.len() == other.move_type.len() &&
+        self.captured.is_some() == other.captured.is_some() &&
+        self.promote_to.is_some() == other.promote_to.is_some() &&
+        self.piece_index == other.piece_index &&
+        self.piece_color == other.piece_color &&
+        self.piece_type == other.piece_type &&
+        self.with.is_some() == other.with.is_some()
+    }
+}
+
+impl Eq for Move {}
 
 #[derive(Debug, Clone)]
 pub struct Pin {

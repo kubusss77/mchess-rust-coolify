@@ -1,7 +1,7 @@
 use crate::moves::{Move, Position};
 
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Copy, Hash)]
 pub enum PieceType {
     Pawn,
     Knight,
@@ -61,5 +61,16 @@ impl Piece {
             PieceType::Queen => 4,
             PieceType::King => 5
         } + if self.color == PieceColor::White { 0 } else { 6 }
+    }
+
+    pub fn piece_index(piece_type: PieceType, color: PieceColor) -> usize {
+        return match piece_type {
+            PieceType::Pawn => 0,
+            PieceType::Knight => 1,
+            PieceType::Bishop => 2,
+            PieceType::Rook => 3,
+            PieceType::Queen => 4,
+            PieceType::King => 5
+        } + if color == PieceColor::White { 0 } else { 6 }
     }
 }

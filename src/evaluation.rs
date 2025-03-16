@@ -16,10 +16,14 @@ impl EvaluationResult {
             black: res1.black + res2.black
         }
     }
+
+    pub fn to_value(&self) -> f64 {
+        self.white - self.black
+    }
 }
 
 pub fn evaluate(board: &mut Board) -> EvaluationResult {
-    let checkmate = board.is_checkmate();
+    let checkmate = board.get_result();
     match checkmate {
         ResultType::WhiteCheckmate => return EvaluationResult {
             white: f64::MAX,
@@ -116,8 +120,8 @@ pub fn evaluate_capture(m: Move) -> f64 {
     }
 } 
 
-pub fn evaluate_move(m: Move, board: &mut Board) -> f64 {
-    let types = m.clone().move_type;
+pub fn evaluate_move(m: &Move, board: &mut Board) -> f64 {
+    let types = &m.move_type;
 
     let mut value = 0.0;
     if types.contains(&MoveType::Capture) { value += evaluate_capture(m.clone()) };

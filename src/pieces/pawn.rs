@@ -3,9 +3,6 @@ use crate::moves::{Move, MoveType, Position};
 use crate::piece::{Piece, PieceColor, PieceType};
 
 pub fn get_legal_moves_pawn(piece: Piece, board: &mut Board) -> Vec<Move> {
-    let legal_moves_cache = board.moves_cache.get_mut(&piece.index);
-    if legal_moves_cache.as_ref().is_some() && legal_moves_cache.as_ref().unwrap().len() > 0 || !board.move_availability.get(&piece.index).or(Some(&false)).unwrap() { return legal_moves_cache.unwrap().clone() };
-
     let file = piece.pos.x;
     let rank = piece.pos.y;
 
@@ -120,9 +117,6 @@ pub fn get_legal_moves_pawn(piece: Piece, board: &mut Board) -> Vec<Move> {
             }
         }
     }
-
-    board.moves_cache.insert(piece.index, moves.clone());
-    board.move_availability.insert(piece.index, moves.len() > 0);
 
     moves
 }
