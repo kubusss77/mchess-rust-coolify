@@ -11,6 +11,19 @@ pub enum PieceType {
     King
 }
 
+impl PieceType {
+    pub fn to_value(&self) -> usize {
+        match self {
+            PieceType::Pawn => 1,
+            PieceType::Bishop => 3,
+            PieceType::Knight => 3,
+            PieceType::Rook => 5,
+            PieceType::Queen => 9,
+            PieceType::King => 100
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum PieceColor {
     White,

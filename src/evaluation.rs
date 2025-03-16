@@ -1,7 +1,9 @@
 use std::usize;
 
-use crate::{board::{Board, ResultType}, r#const::PAWN_ISOLATION_PENALTY, piece::{PieceColor, PieceType}};
+use crate::{board::{Board, ControlTableEntry, ControlType, ResultType}, r#const::*, piece::{PieceColor, PieceType}};
+use crate::moves::{Move, MoveType};
 
+#[derive(Debug, Clone, Copy)]
 pub struct EvaluationResult {
     white: f64,
     black: f64
@@ -88,5 +90,41 @@ pub fn evaluate_pawns(board: &mut Board) -> EvaluationResult {
 }
 
 pub fn evaluate_mobility(board: &mut Board) -> EvaluationResult {
-    todo!()
+    let mut values = EvaluationResult {
+        white: 0.0,
+        black: 0.0
+    };
+
+    for (index, piece) in &board.pieces {
+        let default_control = vec![];
+        let control_table_entry = board.control_table_lookup.get(&index).unwrap_or(&default_control);
+        let value = control_table_entry.iter().filter(|c| c.1 == ControlType::Control).collect::<Vec<_>>().len() as f64 * MOBILITY_VALUE;
+        match piece.color {
+            PieceColor::White => values.white += value,
+            PieceColor::Black => values.black += value
+        }
+    }
+    
+    values
+}
+
+pub fn evaluate_capture(m: Move) -> f64 {
+    let captured_value = m.captured.expect("Captured piece expected for MoveType::Capture").piece_type.to_value() as f64;
+    match m.piece_type {
+        PieceType::King => captured_value * CAPTURE_VALUE,
+        _ => ((m.piece_type.to_value() as f64 - captured_value) + 8.0) * CAPTURE_VALUE
+    }
+} 
+
+pub fn evaluate_move(m: Move, board: &mut Board) -> f64 {
+    let types = m.clone().move_type;
+
+    let mut value = 0.0;
+    if types.contains(&MoveType::Capture) { value += evaluate_capture(m.clone()) };
+    if types.contains(&MoveType::Promotion) { value += m.promote_to.expect("Chosen promotion piece expected for MoveType::Promotion").to_value() as f64 * PROMOTION_VALUE };
+    if types.contains(&MoveType::Castling) { value += CASTLING_VALUE };
+    if types.contains(&MoveType::Check) { value += CHECK_VALUE };
+    // todo: implement pawn/piece development bonus
+
+    value
 }

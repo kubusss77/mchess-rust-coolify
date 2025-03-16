@@ -1,4 +1,4 @@
-use mchess::{board::Board, pieces::pawn::get_controlled_squares_pawn};
+use mchess::{board::Board, evaluation::evaluate, pieces::pawn::get_controlled_squares_pawn};
 
 fn main() {
     let board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -9,4 +9,6 @@ fn main() {
     test_board.check_control_all();
 
     println!("{:?}", get_controlled_squares_pawn(test_board.get_piece(3).unwrap().to_owned(), &mut test_board));
+
+    println!("{:?}", evaluate(&mut test_board));
 }
