@@ -428,6 +428,19 @@ impl Board {
         king
     }
 
+    pub fn is_checkmate(&mut self) -> ResultType {
+        let check = self.check.get(&self.turn).expect("Expected check information for both colors").clone();
+        let king_index = self.get_king(self.turn).expect("Expected both kings").index;
+        if (check.double_checked || (check.checked && self.get_block_moves(self.turn).len() == 0)) && self.get_legal_moves(king_index).len() == 0 {
+            match self.turn.opposite() {
+                PieceColor::White => ResultType::BlackCheckmate,
+                PieceColor::Black => ResultType::WhiteCheckmate
+            }
+        } else {
+            ResultType::None
+        }
+    }
+
     pub fn get_attackers_at(&mut self, rank: usize, file: usize, color: PieceColor) -> Vec<ControlTableEntry> {
         self.control_table[rank][file].iter().filter(|c| c.control_type == ControlType::Attack && c.color == color).cloned().collect()
     }

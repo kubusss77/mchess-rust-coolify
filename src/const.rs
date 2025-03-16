@@ -1,0 +1,1 @@
+pub const PAWN_ISOLATION_PENALTY: f64 = 0.2;
