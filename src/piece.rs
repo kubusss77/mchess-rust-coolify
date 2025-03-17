@@ -73,4 +73,14 @@ impl Piece {
             PieceType::King => 5
         } + if color == PieceColor::White { 0 } else { 6 }
     }
+
+    pub fn to_partial(&self) -> PartialPiece {
+        PartialPiece { piece_type: self.piece_type, pos: self.pos }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PartialPiece {
+    pub piece_type: PieceType,
+    pub pos: Position
 }

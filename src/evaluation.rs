@@ -100,9 +100,8 @@ pub fn evaluate_mobility(board: &mut Board) -> EvaluationResult {
     };
 
     for (index, piece) in &board.pieces {
-        let default_control = Vec::with_capacity(0);
-        let control_table_entry = board.control_table_lookup.get(&index).unwrap_or(&default_control);
-        let value = control_table_entry.iter().filter(|c| c.1 == ControlType::Control).collect::<Vec<_>>().len() as f64 * MOBILITY_VALUE;
+        let value = board.mobility_cache.get(index).unwrap_or(&0.0);
+
         match piece.color {
             PieceColor::White => values.white += value,
             PieceColor::Black => values.black += value

@@ -45,7 +45,7 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
                         match other {
                             Some(_) => MoveType::Capture,
                             None => MoveType::Normal
-                        }
+                        }; 1
                     ],
                     promote_to: None,
                     piece_index: piece.index,
@@ -104,19 +104,19 @@ pub fn get_controlled_squares_king(piece: &Piece, board: &Board) -> Vec<Control>
 
             let other = board.get_piece_at(t_rank, t_file);
 
+            let control_type = match &other {
+                Some(p) if p.color == piece.color => ControlType::Defend,
+                Some(_) => ControlType::Attack,
+                None => ControlType::Control
+            };
+
             controlled.push(Control { 
                 pos: Position { x: t_file, y: t_rank }, 
-                control_type: if other.as_ref().is_some_and(|p| p.color == piece.color) {
-                    ControlType::Defend
-                } else if other.as_ref().is_some() {
-                    ControlType::Attack
-                } else {
-                    ControlType::Control
-                },
+                control_type,
                 color: piece.color, 
                 direction: None,
                 obscured: false
-            })
+            });
         }
     }
 

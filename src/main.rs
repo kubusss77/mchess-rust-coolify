@@ -17,5 +17,8 @@ fn main() {
 
     println!("{:?}", evaluate(&mut test_board));
 
-    println!("{:?}", engine.search(&mut test_board, 5, f64::NEG_INFINITY, f64::INFINITY, true));
+    println!("{:?}", engine.search(&mut test_board, 6, f64::NEG_INFINITY, f64::INFINITY, true));
+
+    let mut test_board_2 = Board::from_fen("2k5/1ppp4/pn6/5Q2/8/2B5/3q1rPP/6K1 w - - 2 3");
+    println!("{:?} {:?}", test_board_2.get_total_legal_moves(None), test_board_2.turn);
 }

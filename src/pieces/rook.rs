@@ -15,7 +15,7 @@ pub fn get_legal_moves_rook(piece: &Piece, board: &Board) -> Vec<Move> {
 
     let mut moves: Vec<Move> = Vec::with_capacity(14);
 
-    for dir in ROOK_DIRECTIONS {
+    for &dir in &ROOK_DIRECTIONS {
         for i in 1..9 {
             let t_file = Position::clamp(file as isize + dir.x * i);
             let t_rank = Position::clamp(rank as isize + dir.y * i);
@@ -29,11 +29,10 @@ pub fn get_legal_moves_rook(piece: &Piece, board: &Board) -> Vec<Move> {
                     from: piece.pos,
                     to: Position { x: t_file, y: t_rank },
                     move_type: vec![
-                        if other.is_some() {
-                            MoveType::Capture
-                        } else {
-                            MoveType::Normal
-                        }
+                        match &other {
+                            Some(_) => MoveType::Capture,
+                            None => MoveType::Normal
+                        }; 1
                     ],
                     captured: other,
                     promote_to: None,
@@ -55,9 +54,10 @@ pub fn get_controlled_squares_rook(piece: &Piece, board: &Board) -> Vec<Control>
 
     let mut controlled: Vec<Control> = Vec::with_capacity(14);
 
-    for dir in ROOK_DIRECTIONS {
+    for &dir in &ROOK_DIRECTIONS {
         let mut obscured = false;
-        for i in 1..9 {
+
+        for i in 1..8 {
             let t_file = Position::clamp(file as isize + dir.x * i);
             let t_rank = Position::clamp(rank as isize + dir.y * i);
 
@@ -65,22 +65,26 @@ pub fn get_controlled_squares_rook(piece: &Piece, board: &Board) -> Vec<Control>
 
             let other = board.get_piece_at(t_rank, t_file);
 
+            let control_type = match &other {
+                Some(p) if p.color == piece.color => ControlType::Defend,
+                Some(_) => ControlType::Attack,
+                None => ControlType::Control
+            };
+
             controlled.push(Control { 
                 pos: Position { x: t_file, y: t_rank }, 
-                control_type: if other.as_ref().is_some_and(|p| p.color == piece.color) {
-                    ControlType::Defend
-                } else if other.as_ref().is_some() {
-                    ControlType::Attack
-                } else {
-                    ControlType::Control
-                },
+                control_type,
                 color: piece.color, 
                 direction: Some(dir),
                 obscured
             });
 
-            if other.as_ref().is_some_and(|p| p.piece_type != PieceType::King) { break };
-            if other.is_some() { obscured = true };
+            if let Some(p) = &other {
+                if p.piece_type != PieceType::King {
+                    break;
+                }
+                obscured = true;
+            }
         }
     }
 

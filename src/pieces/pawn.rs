@@ -22,11 +22,11 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
 
     if board.is_empty(advanced_rank, file) {
         if advanced_rank == promotion_rank {
-            for piece_type in [ PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen ] {
+            for &piece_type in &[ PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen ] {
                 moves.push(Move {
                     from: piece.pos,
                     to: Position { x: file, y: advanced_rank },
-                    move_type: vec![ MoveType::Promotion ],
+                    move_type: vec![ MoveType::Promotion; 1 ],
                     captured: None,
                     promote_to: Some(piece_type),
                     piece_index: piece.index,
@@ -39,7 +39,7 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
             moves.push(Move {
                 from: piece.pos,
                 to: Position { x: file, y: advanced_rank },
-                move_type: vec![ MoveType::Normal ],
+                move_type: vec![ MoveType::Normal; 1 ],
                 captured: None,
                 promote_to: None,
                 piece_index: piece.index,
@@ -54,7 +54,7 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
         moves.push(Move {
             from: piece.pos,
             to: Position { x: file, y: Position::clamp(rank as isize + dir * 2) },
-            move_type: vec![ MoveType::Normal ],
+            move_type: vec![ MoveType::Normal; 1 ],
             captured: None,
             promote_to: None,
             piece_index: piece.index,
@@ -87,7 +87,7 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
                 moves.push(Move {
                     from: piece.pos,
                     to: Position { x: advanced_file, y: advanced_rank },
-                    move_type: vec![ MoveType::Capture ],
+                    move_type: vec![ MoveType::Capture; 1 ],
                     captured: other.clone(),
                     promote_to: None,
                     piece_index: piece.index,
@@ -106,7 +106,7 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
                 moves.push(Move {
                     from: piece.pos,
                     to: Position { x: advanced_file, y: advanced_rank },
-                    move_type: vec![ MoveType::Capture ],
+                    move_type: vec![ MoveType::Capture; 1 ],
                     captured: board.get_piece_at(rank, advanced_file),
                     promote_to: None,
                     piece_index: piece.index,
@@ -137,19 +137,19 @@ pub fn get_controlled_squares_pawn(piece: &Piece, board: &Board) -> Vec<Control>
 
         let other = board.get_piece_at(t_rank, t_file);
 
+        let control_type = match &other {
+            Some(p) if p.color == piece.color => ControlType::Defend,
+            Some(_) => ControlType::Attack,
+            None => ControlType::Control
+        };
+
         controlled.push(Control { 
             pos: Position { x: t_file, y: t_rank }, 
-            control_type: if other.as_ref().is_some_and(|p| p.color == piece.color) {
-                ControlType::Defend
-            } else if other.as_ref().is_some() {
-                ControlType::Attack
-            } else {
-                ControlType::Control
-            },
+            control_type,
             color: piece.color, 
             direction: None,
             obscured: false
-        })
+        });
     }
 
     controlled

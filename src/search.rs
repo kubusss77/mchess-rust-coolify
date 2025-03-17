@@ -7,7 +7,22 @@ use std::collections::HashMap;
 pub struct Chess {
     evaluation_cache: HashMap<i64, EvaluationResult>,
     move_evaluation_cache: HashMap<usize, f64>,
-    transposition_table: HashMap<i64, (f64, u8, Vec<Move>)>
+    transposition_table: HashMap<i64, Node>
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum NodeType {
+    PV,
+    Cut,
+    All
+}
+
+#[derive(Debug, Clone)]
+pub struct Node {
+    depth: u8,
+    node_type: NodeType,
+    score: f64,
+    best_move: Option<Move>
 }
 
 #[derive(Debug)]
@@ -25,6 +40,32 @@ impl Chess {
         }
     }
 
+    pub fn store_position(&mut self, board: &Board, depth: u8, node_type: NodeType, score: f64, best_move: Option<Move>) {
+        let node = Node {
+            depth,
+            node_type,
+            score,
+            best_move
+        };
+
+        self.transposition_table.insert(board.hash, node);
+    }
+
+    pub fn check_position(&self, board: &Board, depth: u8, alpha: f64, beta: f64) -> Option<(f64, Option<Move>)> {
+        if let Some(node) = self.transposition_table.get(&board.hash) {
+            if node.depth >= depth {
+                match node.node_type {
+                    NodeType::PV => return Some((node.score, node.best_move.clone())),
+                    NodeType::Cut if node.score >= beta => return Some((beta, node.best_move.clone())),
+                    NodeType::All if node.score <= alpha => return Some((alpha, node.best_move.clone())),
+                    _ => {}
+                }
+            }
+        }
+
+        None
+    }
+
     pub fn search(&mut self, board: &mut Board, depth: u8, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
@@ -37,26 +78,52 @@ impl Chess {
         let mut alpha = _alpha;
         let mut beta = _beta;
 
+        if let Some((value, m)) = self.check_position(board, depth, alpha, beta) {
+            if m.is_some() {
+                return SearchResult {
+                    value,
+                    moves: if let Some(m_) = m { vec![m_] } else { vec![] }
+                }
+            }
+        }
+
         if maximizer {
             let mut value = f64::NEG_INFINITY;
             let mut moves: Vec<Move> = vec![];
+            let mut best_move = None;
+            let mut node_type = NodeType::All;
 
             let legal_moves = self.sort(board.get_total_legal_moves(None), board);
 
             for m in legal_moves {
-                let result = self.search(&mut board.move_clone(&m), depth - 1, alpha, beta, false);
+                let history = board.make_move(&m);
+
+                let result = self.search(board, depth - 1, alpha, beta, false);
+
+                board.unmake_move(&m, &history);
+
                 let old_value = value;
                 value = value.max(result.value);
-                alpha = alpha.max(value);
+
                 if old_value < value {
+                    best_move = Some(m.clone());
                     let mut new_moves = vec![m];
                     new_moves.extend(result.moves);
                     moves = new_moves;
                 }
+
+                if value > alpha {
+                    alpha = value;
+                    node_type = NodeType::PV;
+                }
+
                 if beta <= alpha {
+                    node_type = NodeType::Cut;
                     break
                 }
             }
+
+            self.store_position(board, depth, node_type, value, best_move);
 
             SearchResult {
                 value,
@@ -65,23 +132,39 @@ impl Chess {
         } else {
             let mut value = f64::INFINITY;
             let mut moves: Vec<Move> = vec![];
+            let mut best_move = None;
+            let mut node_type = NodeType::All;
 
             let legal_moves = self.sort(board.get_total_legal_moves(None), board);
             
             for m in legal_moves {
-                let result = self.search(&mut board.move_clone(&m), depth - 1, alpha, beta, true);
+                let history = board.make_move(&m);
+
+                let result = self.search(board, depth - 1, alpha, beta, true);
+
+                board.unmake_move(&m, &history);
                 let old_value = value;
                 value = value.min(result.value);
-                beta = beta.min(value);
+
                 if old_value > value {
+                    best_move = Some(m.clone());
                     let mut new_moves = vec![m];
                     new_moves.extend(result.moves);
                     moves = new_moves;
                 }
+
+                if value < beta {
+                    node_type = NodeType::PV;
+                    beta = value;
+                }
+
                 if beta <= alpha {
+                    node_type = NodeType::Cut;
                     break
                 }
             }
+
+            self.store_position(board, depth, node_type, value, best_move);
 
             SearchResult {
                 value,
