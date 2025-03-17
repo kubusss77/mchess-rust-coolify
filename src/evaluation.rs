@@ -1,6 +1,6 @@
 use std::usize;
 
-use crate::{board::{Board, ControlType, ResultType}, r#const::*, piece::{PieceColor, PieceType}};
+use crate::{board::{Board, ResultType}, r#const::*, piece::{PieceColor, PieceType}};
 use crate::moves::{Move, MoveType};
 
 #[derive(Debug, Clone, Copy)]

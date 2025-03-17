@@ -1,4 +1,5 @@
 use std::fmt;
+use crate::r#const::MVV_LVA_VALUE;
 use crate::piece::{PieceType, PieceColor, Piece};
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
@@ -105,19 +106,34 @@ impl Move {
         self.piece_type.hash(&mut hasher);
         hasher.finish() as usize
     }
+
+    pub fn mvv_lva(&self) -> f64 {
+        if !self.move_type.contains(&MoveType::Capture) {
+            return 0.0;
+        }
+
+        let victim = self.captured.as_ref().unwrap().piece_type;
+        let aggressor = self.piece_type;
+
+        let piece_value = |p: PieceType| -> f64 {
+            match p {
+                PieceType::Pawn => 100.0,
+                PieceType::Knight => 300.0,
+                PieceType::Bishop => 300.0,
+                PieceType::Rook => 500.0,
+                PieceType::Queen => 900.0,
+                PieceType::King => 0.0
+            }
+        };
+
+        (piece_value(victim) * 16.0 - piece_value(aggressor)) * MVV_LVA_VALUE
+    }
 }
 
 impl PartialEq for Move {
     fn eq(&self, other: &Self) -> bool {
         self.from == other.from &&
-        self.to == other.from &&
-        self.move_type.len() == other.move_type.len() &&
-        self.captured.is_some() == other.captured.is_some() &&
-        self.promote_to.is_some() == other.promote_to.is_some() &&
-        self.piece_index == other.piece_index &&
-        self.piece_color == other.piece_color &&
-        self.piece_type == other.piece_type &&
-        self.with.is_some() == other.with.is_some()
+        self.to == other.from
     }
 }
 

@@ -1,13 +1,15 @@
-use crate::evaluation::{evaluate, evaluate_move, EvaluationResult};
+use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, KILLER_MOVE_VALUE, PROMOTION_VALUE, PV_MOVE};
+use crate::evaluation::{evaluate, EvaluationResult};
 use crate::board::{Board, ResultType};
-use crate::moves::Move;
+use crate::moves::{Move, MoveType};
 use core::f64;
 use std::collections::HashMap;
 
 pub struct Chess {
     evaluation_cache: HashMap<i64, EvaluationResult>,
     move_evaluation_cache: HashMap<usize, f64>,
-    transposition_table: HashMap<i64, Node>
+    transposition_table: HashMap<i64, Node>,
+    killer_moves: Vec<Vec<Option<Move>>>
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -36,7 +38,8 @@ impl Chess {
         Chess {
             evaluation_cache: HashMap::new(),
             move_evaluation_cache: HashMap::new(),
-            transposition_table: HashMap::new()
+            transposition_table: HashMap::new(),
+            killer_moves: vec![vec![None; 2]; 100]
         }
     }
 
@@ -66,6 +69,17 @@ impl Chess {
         None
     }
 
+    pub fn store_killer_move(&mut self, m: &Move, depth: u8) {
+        let first_killer = &self.killer_moves[depth as usize][0];
+
+        if let Some(killer) = first_killer {
+            if killer != m {
+                self.killer_moves[depth as usize][1] = Some(killer.clone());
+                self.killer_moves[depth as usize][0] = Some(m.clone());
+            }
+        }
+    }
+
     pub fn search(&mut self, board: &mut Board, depth: u8, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
@@ -93,7 +107,7 @@ impl Chess {
             let mut best_move = None;
             let mut node_type = NodeType::All;
 
-            let legal_moves = self.sort(board.get_total_legal_moves(None), board);
+            let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
 
             for m in legal_moves {
                 let history = board.make_move(&m);
@@ -107,7 +121,7 @@ impl Chess {
 
                 if old_value < value {
                     best_move = Some(m.clone());
-                    let mut new_moves = vec![m];
+                    let mut new_moves = vec![m.clone()];
                     new_moves.extend(result.moves);
                     moves = new_moves;
                 }
@@ -118,6 +132,8 @@ impl Chess {
                 }
 
                 if beta <= alpha {
+                    self.store_killer_move(&m, depth);
+
                     node_type = NodeType::Cut;
                     break
                 }
@@ -135,7 +151,7 @@ impl Chess {
             let mut best_move = None;
             let mut node_type = NodeType::All;
 
-            let legal_moves = self.sort(board.get_total_legal_moves(None), board);
+            let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
             
             for m in legal_moves {
                 let history = board.make_move(&m);
@@ -148,7 +164,7 @@ impl Chess {
 
                 if old_value > value {
                     best_move = Some(m.clone());
-                    let mut new_moves = vec![m];
+                    let mut new_moves = vec![m.clone()];
                     new_moves.extend(result.moves);
                     moves = new_moves;
                 }
@@ -159,6 +175,8 @@ impl Chess {
                 }
 
                 if beta <= alpha {
+                    self.store_killer_move(&m, depth);
+
                     node_type = NodeType::Cut;
                     break
                 }
@@ -183,20 +201,56 @@ impl Chess {
         value
     }
 
-    pub fn evaluate_move(&mut self, m: &Move, board: &mut Board) -> f64 {
+    pub fn evaluate_move(&mut self, m: &Move, board: &mut Board, depth: u8) -> f64 {
         if self.move_evaluation_cache.contains_key(&m.hash()) {
             return *self.move_evaluation_cache.get(&m.hash()).unwrap()
         }
-        let value = evaluate_move(m, board);
+        let mut value = 0.0;
+
+        if let Some(node) = self.transposition_table.get(&board.hash) {
+            if let Some(best_move) = &node.best_move {
+                if best_move == m {
+                    value += PV_MOVE;
+                }
+            }
+        }
+
+        value += m.mvv_lva();
+
+        if !m.move_type.contains(&MoveType::Capture) {
+            if let Some(killer) = &self.killer_moves[depth as usize][0] {
+                if m.from == killer.from && m.to == killer.to {
+                    value += KILLER_MOVE_VALUE;
+                }
+            }
+
+            if let Some(killer) = &self.killer_moves[depth as usize][1] {
+                if m.from == killer.from && m.to == killer.to {
+                    value += KILLER_MOVE_VALUE - 1000.0;
+                }
+            }
+        }
+
+        if m.move_type.contains(&MoveType::Promotion) {
+            value += PROMOTION_VALUE;
+        }
+
+        if m.move_type.contains(&MoveType::Check) {
+            value += CHECK_VALUE;
+        }
+
+        if m.move_type.contains(&MoveType::Castling) {
+            value += CASTLING_VALUE;
+        }
 
         self.move_evaluation_cache.insert(m.hash(), value);
 
         value
     }
 
-    pub fn sort(&mut self, moves: Vec<Move>, board: &mut Board) -> Vec<Move> {
+    pub fn sort(&mut self, moves: Vec<Move>, board: &mut Board, depth: u8) -> Vec<Move> {
         let scores = moves.iter()
-            .map(|m| self.evaluate_move(m, board));
+            .map(|m| self.evaluate_move(m, board, depth));
         
         let mut indices: Vec<(usize, f64)> = scores
             .enumerate()
