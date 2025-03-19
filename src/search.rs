@@ -1,5 +1,5 @@
 use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, KILLER_MOVE_VALUE, PROMOTION_VALUE, PV_MOVE};
-use crate::evaluation::{evaluate, EvaluationResult};
+use crate::evaluation::{evaluate, evaluate_move, EvaluationResult};
 use crate::board::{Board, ResultType};
 use crate::moves::{Move, MoveType};
 use core::f64;
@@ -219,13 +219,13 @@ impl Chess {
 
         if !m.move_type.contains(&MoveType::Capture) {
             if let Some(killer) = &self.killer_moves[depth as usize][0] {
-                if m.from == killer.from && m.to == killer.to {
+                if m == killer {
                     value += KILLER_MOVE_VALUE;
                 }
             }
 
             if let Some(killer) = &self.killer_moves[depth as usize][1] {
-                if m.from == killer.from && m.to == killer.to {
+                if m == killer {
                     value += KILLER_MOVE_VALUE - 1000.0;
                 }
             }
@@ -263,6 +263,10 @@ impl Chess {
 
         for (i, _) in indices {
             result.push(moves[i].clone());
+        }
+
+        if depth == 6 {
+            println!("{:?}", result);
         }
         
         result

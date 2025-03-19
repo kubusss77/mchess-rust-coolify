@@ -28,6 +28,15 @@ impl Position {
             y: self.y as isize
         }
     }
+
+    pub fn to_bitboard(&self) -> u64 {
+        1u64 << (self.x + self.y * 8)
+    }
+
+    pub fn from_bitboard(square: u64) -> Self {
+        let index = square.trailing_zeros() as usize;
+        Position { x: index % 8, y: index / 8 }
+    }
 }
 
 impl PartialEq for Position {

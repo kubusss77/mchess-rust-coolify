@@ -77,6 +77,10 @@ impl Piece {
     pub fn to_partial(&self) -> PartialPiece {
         PartialPiece { piece_type: self.piece_type, pos: self.pos }
     }
+
+    pub fn get_base(&self) -> BasePiece {
+        (self.piece_type, self.color)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -84,3 +88,5 @@ pub struct PartialPiece {
     pub piece_type: PieceType,
     pub pos: Position
 }
+
+pub type BasePiece = (PieceType, PieceColor);

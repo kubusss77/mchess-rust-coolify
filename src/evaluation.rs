@@ -20,6 +20,13 @@ impl EvaluationResult {
     pub fn to_value(&self) -> f64 {
         self.white - self.black
     }
+
+    pub fn default() -> Self {
+        EvaluationResult {
+            white: 0.0,
+            black: 0.0
+        }
+    }
 }
 
 pub fn evaluate(board: &mut Board) -> EvaluationResult {
@@ -40,10 +47,20 @@ pub fn evaluate(board: &mut Board) -> EvaluationResult {
         _ => ()
     }
 
+    let mut value = EvaluationResult::default();
+
+    for piece in board.pieces.values() {
+        if piece.piece_type == PieceType::King { continue; }
+        match piece.color {
+            PieceColor::White => value.white += piece.piece_type.to_value() as f64,
+            PieceColor::Black => value.black += piece.piece_type.to_value() as f64
+        }
+    }
+
     let pawns = evaluate_pawns(board);
     let mobility = evaluate_mobility(board);
 
-    EvaluationResult::combine(pawns, mobility)
+    EvaluationResult::combine(value, EvaluationResult::combine(pawns, mobility))
 }
 
 pub fn evaluate_pawns(board: &mut Board) -> EvaluationResult {
@@ -119,7 +136,7 @@ pub fn evaluate_capture(m: &Move) -> f64 {
     }
 } 
 
-pub fn evaluate_move(m: &Move, board: &mut Board) -> f64 {
+pub fn evaluate_move(m: &Move) -> f64 {
     let types = &m.move_type;
 
     let mut value = 0.0;
