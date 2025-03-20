@@ -111,6 +111,27 @@ impl Chess {
         }
     }
 
+    pub fn iterative_deepening(&mut self, board: &mut Board, max_depth: u8, time_limit: u64) -> SearchResult {
+        let start_time = std::time::Instant::now();
+        let mut best_result = SearchResult { value: 0.0, moves: vec![] };
+
+        for depth in 1..=max_depth {
+            self.move_evaluation_cache.clear();
+
+            let result = self.search(board, depth, f64::NEG_INFINITY, f64::INFINITY, true);
+            best_result = result;
+
+            let elapsed = start_time.elapsed().as_millis() as u64;
+            if elapsed > (time_limit * 3) / 4 {
+                break;
+            }
+
+            println!("Depth {depth}: Best moves {:?}, Score: {}", best_result.moves, best_result.value)
+        }
+
+        best_result
+    }
+
     pub fn search(&mut self, board: &mut Board, depth: u8, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
@@ -139,6 +160,10 @@ impl Chess {
             let mut moves: Vec<Move> = vec![];
             let mut best_move = None;
             let mut node_type = NodeType::All;
+
+            if let Some(res) = self.prune_null_moves(board, depth, alpha, beta, maximizer) {
+                return res;
+            }
 
             let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
 
@@ -191,6 +216,10 @@ impl Chess {
             let mut best_move = None;
             let mut node_type = NodeType::All;
 
+            if let Some(res) = self.prune_null_moves(board, depth, alpha, beta, maximizer) {
+                return res;
+            }
+            
             let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
             
             for m in legal_moves {
@@ -237,6 +266,37 @@ impl Chess {
                 moves
             }
         }
+    }
+
+    pub fn prune_null_moves(&mut self, board: &mut Board, depth: u8, alpha: f64, beta: f64, maximizer: bool) -> Option<SearchResult> {
+        if depth < 3 || !board.check.get(&board.turn).unwrap().checked || board.get_result().is_end() {
+            return None
+        }
+
+        let r = 2 + depth / 6;
+
+        board.turn = board.turn.opposite();
+        board.hash ^= board.hash_table[12 * 64 + 4];
+        board.hash ^= board.hash_table[12 * 64 + 5];
+
+        let null_result = self.search(board, depth - r, -beta, -beta + 1.0, !maximizer);
+        
+        board.turn = board.turn.opposite();
+        board.hash ^= board.hash_table[12 * 64 + 4];
+        board.hash ^= board.hash_table[12 * 64 + 5];
+
+        if -null_result.value >= beta {
+            if depth >= 6 {
+                let verify_result = self.search(board, depth - r, alpha, beta, maximizer);
+                if verify_result.value >= beta {
+                    return Some(SearchResult { value: beta, moves: vec![] });
+                }
+            } else {
+                return Some(SearchResult { value: beta, moves: vec![] });
+            }
+        }
+
+        None
     }
 
     pub fn evaluate(&mut self, board: &mut Board) -> EvaluationResult {

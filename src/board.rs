@@ -24,6 +24,16 @@ pub enum ResultType {
     NotCached,
 }
 
+impl ResultType {
+    pub fn is_end(&self) -> bool{
+        if self == &ResultType::None || self == &ResultType::NotCached {
+            false
+        } else {
+            true
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Castling {
     pub white: (bool, bool),
@@ -481,7 +491,7 @@ impl Board {
         self.total_moves_cache.clear();
         self.moves_cache.clear();
         self.hash ^= self.hash_table[12 * 64 + 4];
-        self.hash ^= self.hash_table[12 * 64 + 1];
+        self.hash ^= self.hash_table[12 * 64 + 5];
     }
 
     pub fn make_move(&mut self, m: &Move) -> MoveInfo {
