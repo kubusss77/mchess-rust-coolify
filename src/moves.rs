@@ -131,18 +131,18 @@ impl Move {
                 PieceType::Bishop => 300.0,
                 PieceType::Rook => 500.0,
                 PieceType::Queen => 900.0,
-                PieceType::King => 0.0
+                PieceType::King => 10000.0
             }
         };
 
-        (piece_value(victim) * 16.0 - piece_value(aggressor)) * MVV_LVA_VALUE
+        (piece_value(victim) - piece_value(aggressor)/10.0) * MVV_LVA_VALUE
     }
 }
 
 impl PartialEq for Move {
     fn eq(&self, other: &Self) -> bool {
         self.from == other.from &&
-        self.to == other.from
+        self.to == other.to
     }
 }
 

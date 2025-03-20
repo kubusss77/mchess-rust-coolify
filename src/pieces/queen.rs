@@ -33,6 +33,8 @@ pub fn get_legal_moves_queen(piece: &Piece, board: &Board) -> Vec<Move> {
 
             let other = board.get_piece_at(t_rank, t_file);
 
+            let flag = other.as_ref().is_some();
+
             if board.square_free(t_rank, t_file, piece.color) {
                 moves.push(Move {
                     from: piece.pos,
@@ -51,6 +53,8 @@ pub fn get_legal_moves_queen(piece: &Piece, board: &Board) -> Vec<Move> {
                     with: None
                 })
             }
+
+            if flag { break };
         }
     }
 

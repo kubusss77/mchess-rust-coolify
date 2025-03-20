@@ -29,8 +29,8 @@ pub struct Node {
 
 #[derive(Debug)]
 pub struct SearchResult {
-    value: f64,
-    moves: Vec<Move>
+    pub value: f64,
+    pub moves: Vec<Move>
 }
 
 impl Chess {
@@ -80,6 +80,37 @@ impl Chess {
         }
     }
 
+    pub fn debug_move_sequence(&mut self, board: &mut Board, moves: &[Move], start_depth: u8) {
+        let mut temp_board = board.clone();
+        
+        println!("Starting board position:\nColor to move {:?}\n{:?}", temp_board.turn, temp_board);
+        
+        for (i, m) in moves.iter().enumerate() {
+            println!("Move {}: {:?} color: {:?} from: {:?} to: {:?}", 
+                     i+1, m, m.piece_color, m.from, m.to);
+            
+            // Check if move is legal
+            let legal_moves = temp_board.get_total_legal_moves(None);
+
+            let move_exists = legal_moves.iter().any(|legal_m| 
+                legal_m.from == m.from && legal_m.to == m.to);
+            
+            if !move_exists {
+                println!("ERROR: Move is not legal in current position!");
+                println!("Legal moves are:");
+                for legal_m in &legal_moves {
+                    println!("{:?} from {:?} to {:?}", legal_m, legal_m.from, legal_m.to);
+                }
+                break;
+            }
+            
+            println!("Best moves: {:?}", self.sort(legal_moves, &mut temp_board, start_depth - i as u8));
+            println!("King moves: {:?}", temp_board.get_legal_moves(temp_board.get_king(board.turn).unwrap().index));
+            temp_board.make_move(m);
+            println!("Board after move\n {:?}", temp_board);
+        }
+    }
+
     pub fn search(&mut self, board: &mut Board, depth: u8, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
@@ -88,6 +119,8 @@ impl Chess {
                 moves: vec![]
             }
         }
+
+        let start_hash = board.hash;
 
         let mut alpha = _alpha;
         let mut beta = _beta;
@@ -116,14 +149,17 @@ impl Chess {
 
                 board.unmake_move(&m, &history);
 
-                let old_value = value;
-                value = value.max(result.value);
-
-                if old_value < value {
+                if result.value > value {
+                    value = result.value;
                     best_move = Some(m.clone());
-                    let mut new_moves = vec![m.clone()];
-                    new_moves.extend(result.moves);
-                    moves = new_moves;
+
+                    if !result.moves.is_empty() {
+                        let mut new_moves = vec![m.clone()];
+                        new_moves.extend(result.moves);
+                        moves = new_moves;
+                    } else {
+                        moves = vec![m.clone()]
+                    }
                 }
 
                 if value > alpha {
@@ -140,6 +176,10 @@ impl Chess {
             }
 
             self.store_position(board, depth, node_type, value, best_move);
+
+            if start_hash != board.hash {
+                println!("POSITION CORRUPTED DEPTH: {depth}");
+            }
 
             SearchResult {
                 value,
@@ -159,14 +199,18 @@ impl Chess {
                 let result = self.search(board, depth - 1, alpha, beta, true);
 
                 board.unmake_move(&m, &history);
-                let old_value = value;
-                value = value.min(result.value);
 
-                if old_value > value {
+                if result.value < value {
+                    value = result.value;
                     best_move = Some(m.clone());
-                    let mut new_moves = vec![m.clone()];
-                    new_moves.extend(result.moves);
-                    moves = new_moves;
+
+                    if !result.moves.is_empty() {
+                        let mut new_moves = vec![m.clone()];
+                        new_moves.extend(result.moves);
+                        moves = new_moves;
+                    } else {
+                        moves = vec![m.clone()]
+                    }
                 }
 
                 if value < beta {
@@ -183,6 +227,10 @@ impl Chess {
             }
 
             self.store_position(board, depth, node_type, value, best_move);
+
+            if start_hash != board.hash {
+                println!("POSITION CORRUPTED DEPTH: {depth}");
+            }
 
             SearchResult {
                 value,

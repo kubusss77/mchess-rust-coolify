@@ -386,7 +386,7 @@ impl Board {
         if piece.1 == PieceColor::White {
             self.white_pieces = (self.white_pieces & from_bb) | to_bb;
         } else {
-            self.white_pieces = (self.black_pieces & from_bb) | to_bb;
+            self.black_pieces = (self.black_pieces & from_bb) | to_bb;
         }
         self.all_pieces = (self.all_pieces & !from_bb) | to_bb;
     }
@@ -420,6 +420,7 @@ impl Board {
         self.pieces.get(&piece_index)
     }
 
+    // TODO: discovered attacks
     pub fn get_legal_moves(&mut self, piece_index: usize) -> Vec<Move> {
         if !self.pieces.contains_key(&piece_index) {
             return Vec::with_capacity(0);
@@ -434,7 +435,7 @@ impl Board {
 
         let piece = self.pieces.get(&piece_index).unwrap();
         
-        let moves = match piece.piece_type {
+        let mut moves = match piece.piece_type {
             PieceType::Pawn => get_legal_moves_pawn(&piece, self),
             PieceType::Bishop => get_legal_moves_bishop(&piece, self),
             PieceType::Knight => get_legal_moves_knight(&piece, self),
@@ -478,11 +479,28 @@ impl Board {
         }
         self.result_cache = ResultType::NotCached;
         self.total_moves_cache.clear();
+        self.moves_cache.clear();
         self.hash ^= self.hash_table[12 * 64 + 4];
         self.hash ^= self.hash_table[12 * 64 + 1];
     }
 
     pub fn make_move(&mut self, m: &Move) -> MoveInfo {
+        let mut history = MoveInfo {
+            hash: self.hash,
+            captured_piece: m.captured.clone(),
+            halfmove_clock: self.halfmove_clock,
+            white_check: self.check.get(&PieceColor::White).unwrap_or(&CheckInfo::default()).clone(),
+            black_check: self.check.get(&PieceColor::Black).unwrap_or(&CheckInfo::default()).clone(),
+            turn: self.turn,
+            castling: self.castling.clone(),
+            promoted_type: if m.move_type.contains(&MoveType::Promotion) {
+                Some(self.pieces.get(&m.piece_index).unwrap().piece_type)
+            } else {
+                None
+            },
+            affected_pieces: Vec::with_capacity(0)
+        };
+
         self.update_board(m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion));
 
         let piece_index = m.piece_index;
@@ -554,21 +572,9 @@ impl Board {
         affected.extend(to_indices);
         affected.extend(from_indices);
 
-        MoveInfo {
-            hash: self.hash,
-            captured_piece: m.captured.clone(),
-            halfmove_clock: self.halfmove_clock,
-            white_check: self.check.get(&PieceColor::White).unwrap_or(&CheckInfo::default()).clone(),
-            black_check: self.check.get(&PieceColor::Black).unwrap_or(&CheckInfo::default()).clone(),
-            turn: self.turn,
-            castling: self.castling.clone(),
-            promoted_type: if m.move_type.contains(&MoveType::Promotion) {
-                Some(self.pieces.get(&m.piece_index).unwrap().piece_type)
-            } else {
-                None
-            },
-            affected_pieces: affected
-        }
+        history.affected_pieces = affected;
+
+        history
     }
 
     pub fn unmake_move(&mut self, m: &Move, history: &MoveInfo) {
@@ -595,8 +601,27 @@ impl Board {
             self.board[m.to.x][m.to.y] = captured.index as isize;
         }
 
-        if m.move_type.contains(&MoveType::Castling) {
-            todo!();
+        if m.move_type.contains(&MoveType::Castling) && m.with.is_some() {
+            let rook = m.with.clone().unwrap();
+            
+            let old_pos = Position {
+                x: if m.to.x < m.from.x { 3 } else { 5 },
+                y: m.from.y
+            };
+
+            let new_pos = Position {
+                x: if m.to.x < m.from.x { 0 } else { 7 },
+                y: m.from.y
+            };
+
+            self.update_bitboard_pos((PieceType::Rook, m.piece_color), old_pos, new_pos);
+
+            self.board[old_pos.x][old_pos.y] = -1;
+            self.board[new_pos.x][new_pos.y] = rook.index as isize;
+
+            if let Some(piece) = self.pieces.get_mut(&rook.index) {
+                piece.pos = new_pos.clone();
+            }
         }
 
         self.hash = history.hash;
@@ -606,11 +631,11 @@ impl Board {
         
         self.clear();
 
+        self.check_control_all();
+
         self.check.clear();
         self.check.insert(PieceColor::White, history.white_check.clone());
         self.check.insert(PieceColor::Black, history.black_check.clone());
-
-        self.check_control_all();
     }
 
     pub fn move_clone(&mut self, m: &Move) -> Board {

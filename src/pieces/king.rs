@@ -31,12 +31,12 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
 
     for i in -1..=1 {
         for j in -1..=1 {
-            if i == 1 && j == 1 { continue };
+            if i == 0 && j == 0 { continue };
             let t_rank = Position::clamp(irank + i);
             let t_file = Position::clamp(ifile + j);
             let other = board.get_piece_at(t_rank, t_file);
 
-            if can_move_to(piece, board, rank, file, false) {
+            if can_move_to(piece, board, t_rank, t_file, false) {
                 moves.push(Move {
                     from: piece.pos,
                     to: Position { x: t_file, y: t_rank },
@@ -60,7 +60,7 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
     if board.castling.can_castle_ks(piece.color) && can_move_multifile(piece, board, rank, vec![ ifile + 1, ifile + 2 ]) {
         moves.push(Move {
             from: piece.pos,
-            to: Position { x: file, y: rank + 2 },
+            to: Position { x: file + 2, y: rank },
             captured: None,
             move_type: vec![ MoveType::Castling ],
             promote_to: None,
@@ -74,7 +74,7 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
     if board.castling.can_castle_qs(piece.color) && can_move_multifile(piece, board, rank, vec![ ifile - 1, ifile - 2, ifile - 3 ]) {
         moves.push(Move {
             from: piece.pos,
-            to: Position::from(ifile, irank - 2),
+            to: Position::from(ifile - 2, irank),
             captured: None,
             move_type: vec![ MoveType::Castling ],
             promote_to: None,

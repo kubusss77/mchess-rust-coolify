@@ -59,18 +59,18 @@ pub fn evaluate(board: &mut Board) -> EvaluationResult {
 
     let pawns = evaluate_pawns(board);
     let mobility = evaluate_mobility(board);
+    let piece_safety = evaluate_piece_safety(board);
 
-    EvaluationResult::combine(value, EvaluationResult::combine(pawns, mobility))
+    EvaluationResult::combine(value, 
+        EvaluationResult::combine(pawns, 
+            EvaluationResult::combine(mobility, piece_safety)))
 }
 
 pub fn evaluate_pawns(board: &mut Board) -> EvaluationResult {
     let mut files_white: Vec<usize> = vec![0; 8];
     let mut files_black: Vec<usize> = vec![0; 8];
 
-    let mut values = EvaluationResult {
-        white: 0.0,
-        black: 0.0
-    };
+    let mut values = EvaluationResult::default();
 
     for pawn in board.pieces.values().filter(|p| p.piece_type == PieceType::Pawn) {
         match pawn.color {
@@ -111,10 +111,7 @@ pub fn evaluate_pawns(board: &mut Board) -> EvaluationResult {
 }
 
 pub fn evaluate_mobility(board: &mut Board) -> EvaluationResult {
-    let mut values = EvaluationResult {
-        white: 0.0,
-        black: 0.0
-    };
+    let mut values = EvaluationResult::default();
 
     for (index, piece) in &board.pieces {
         let value = board.mobility_cache.get(index).unwrap_or(&0.0);
@@ -126,6 +123,45 @@ pub fn evaluate_mobility(board: &mut Board) -> EvaluationResult {
     }
     
     values
+}
+
+pub fn evaluate_piece_safety(board: &mut Board) -> EvaluationResult {
+    let mut value = EvaluationResult::default();
+
+    for piece in board.pieces.values() {
+        if piece.piece_type == PieceType::King { continue; }
+
+        let pos = piece.pos;
+        let piece_value = piece.piece_type.to_value() as f64;
+
+        let attackers = board.get_control_at(pos.y, pos.x, Some(piece.color.opposite()));
+        let defenders = board.get_control_at(pos.y, pos.x, Some(piece.color));
+
+        if !attackers.is_empty() && defenders.is_empty() {
+            match piece.color {
+                PieceColor::White => value.white -= piece_value * NO_SAFETY_PENALTY,
+                PieceColor::Black => value.black -= piece_value * NO_SAFETY_PENALTY
+            }
+        } else if !attackers.is_empty() {
+            let lowest_attacker_value = attackers.iter()
+                .map(|a| a.origin.piece_type.to_value() as f64)
+                .min_by(|a, b| a.total_cmp(b))
+                .unwrap_or(0.0);
+            
+            if lowest_attacker_value < piece_value {
+                match piece.color {
+                    PieceColor::White => value.white -= (piece_value - lowest_attacker_value) * LOW_SAFETY_PENALTY,
+                    PieceColor::Black => value.black -= (piece_value - lowest_attacker_value) * LOW_SAFETY_PENALTY
+                }
+            }
+        }
+    }
+    
+    value
+}
+
+pub fn evaluate_king_safety(board: &mut Board) -> EvaluationResult {
+    todo!()
 }
 
 pub fn evaluate_capture(m: &Move) -> f64 {
