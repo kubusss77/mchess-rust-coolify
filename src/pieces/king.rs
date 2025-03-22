@@ -1,6 +1,6 @@
 use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Position};
-use crate::piece::Piece;
+use crate::piece::{PartialPiece, Piece};
 
 fn can_move_to(piece: &Piece, board: &Board, rank: usize, file: usize, explicit: bool) -> bool {
     if !Board::in_bounds(rank, file) { return false };
@@ -88,7 +88,7 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_king(piece: &Piece, board: &Board) -> Vec<Control> {
+pub fn get_controlled_squares_king(piece: &PartialPiece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 

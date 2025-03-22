@@ -1,4 +1,4 @@
-use crate::moves::{Move, Position};
+use crate::moves::{Move, Position, Vector};
 
 
 #[derive(Debug, Clone, PartialEq, Copy, Hash)]
@@ -75,7 +75,7 @@ impl Piece {
     }
 
     pub fn to_partial(&self) -> PartialPiece {
-        PartialPiece { piece_type: self.piece_type, pos: self.pos }
+        PartialPiece { piece_type: self.piece_type, pos: self.pos, color: self.color }
     }
 
     pub fn get_base(&self) -> BasePiece {
@@ -86,7 +86,8 @@ impl Piece {
 #[derive(Debug, Clone)]
 pub struct PartialPiece {
     pub piece_type: PieceType,
-    pub pos: Position
+    pub pos: Position,
+    pub color: PieceColor
 }
 
 pub type BasePiece = (PieceType, PieceColor);

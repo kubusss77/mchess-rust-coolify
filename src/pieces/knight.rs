@@ -1,6 +1,6 @@
 use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Position, Vector};
-use crate::piece::Piece;
+use crate::piece::{PartialPiece, Piece};
 
 const KNIGHT_DIRECTIONS: [Vector; 8] = [
     Vector { x: 2, y: -1 },
@@ -53,7 +53,7 @@ pub fn get_legal_moves_knight(piece: &Piece, board: &Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_knight(piece: &Piece, board: &Board) -> Vec<Control> {
+pub fn get_controlled_squares_knight(piece: &PartialPiece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 

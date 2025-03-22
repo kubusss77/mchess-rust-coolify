@@ -33,12 +33,12 @@ pub fn evaluate(board: &mut Board) -> EvaluationResult {
     let checkmate = board.get_result();
     match checkmate {
         ResultType::WhiteCheckmate => return EvaluationResult {
-            white: f64::MAX,
+            white: 10000000000.0,
             black: 0.0
         },
         ResultType::BlackCheckmate => return EvaluationResult {
             white: 0.0,
-            black: f64::MAX
+            black: 10000000000.0
         },
         ResultType::Draw | ResultType::Stalemate => return EvaluationResult {
             white: 0.0,

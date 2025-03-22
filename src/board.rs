@@ -431,6 +431,7 @@ impl Board {
     }
 
     // TODO: discovered attacks
+    // nevermind, i forgot i already had pin detection
     pub fn get_legal_moves(&mut self, piece_index: usize) -> Vec<Move> {
         if !self.pieces.contains_key(&piece_index) {
             return Vec::with_capacity(0);
@@ -453,6 +454,12 @@ impl Board {
             PieceType::Queen => get_legal_moves_queen(&piece, self),
             PieceType::King => get_legal_moves_king(&piece, self)
         };
+
+        for m in &mut moves {
+            if self.would_check(&m) {
+                m.move_type.extend([MoveType::Check]);
+            }
+        }
 
         self.moves_cache.insert(piece_index, moves.clone());
         self.move_availability.insert(piece_index, moves.len() > 0);
@@ -660,23 +667,33 @@ impl Board {
         new_board
     }
 
+    fn get_piece_control(&self, partial: &PartialPiece) -> Vec<Control> { 
+        match partial.piece_type {
+            PieceType::Pawn => get_controlled_squares_pawn(partial, self),
+            PieceType::Knight => get_controlled_squares_knight(partial, self),
+            PieceType::Bishop => get_controlled_squares_bishop(partial, self),
+            PieceType::Rook => get_controlled_squares_rook(partial, self),
+            PieceType::Queen => get_controlled_squares_queen(partial, self),
+            PieceType::King => get_controlled_squares_king(partial, self),
+        }
+    }
+
     pub fn get_controlled_squares(&self, piece_index: usize) -> Vec<Control> {
         if let Some(piece) = self.pieces.get(&piece_index) {
-            match piece.piece_type {
-                PieceType::Pawn => get_controlled_squares_pawn(piece, self),
-                PieceType::Knight => get_controlled_squares_knight(piece, self),
-                PieceType::Bishop => get_controlled_squares_bishop(piece, self),
-                PieceType::Rook => get_controlled_squares_rook(piece, self),
-                PieceType::Queen => get_controlled_squares_queen(piece, self),
-                PieceType::King => get_controlled_squares_king(piece, self),
-            }
+            let partial = &piece.to_partial();
+            self.get_piece_control(partial)
         } else {
             Vec::with_capacity(0)
         }
     }
 
     pub fn clear_control(&mut self, piece_index: usize) {
-        self.control_table_lookup.remove(&piece_index);
+        if let Some(positions) = self.control_table_lookup.remove(&piece_index) {
+            for (pos, _) in positions {
+                let controls = &mut self.control_table[pos.y][pos.x];
+                controls.retain(|entry| entry.index != piece_index);
+            }
+        }
     }
 
     pub fn check_control(&mut self, piece_index: usize) {
@@ -840,6 +857,25 @@ impl Board {
             moves.extend(control.map(|c| c.to_move(self, pos)))
         }
         moves
+    }
+
+    pub fn would_check(&mut self, m: &Move) -> bool {
+        let partial = PartialPiece {
+            piece_type: m.piece_type,
+            pos: m.to,
+            color: m.piece_color
+        };
+        let controlled_squares = self.get_piece_control(&partial);
+        let king = self.get_king(m.piece_color.opposite());
+        if let Some(king_piece) = king {
+            let king_pos = king_piece.pos;
+            for control in &controlled_squares {
+                if control.pos == king_pos {
+                    return true
+                }
+            }
+        }
+        false
     }
 
     pub fn get_piece_at(&self, rank: usize, file: usize) -> Option<Piece> {

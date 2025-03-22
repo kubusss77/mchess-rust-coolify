@@ -14,18 +14,26 @@ fn main() {
 
     test_board.check_control_all();
 
-    println!("{:?}", get_controlled_squares_pawn(test_board.get_piece(3).unwrap(), &test_board));
+    println!("{:?}", get_controlled_squares_pawn(&test_board.get_piece(3).unwrap().to_partial(), &test_board));
 
     println!("{:?}", evaluate(&mut test_board));
 
-    // let search = engine.search(&mut test_board, 6, f64::NEG_INFINITY, f64::INFINITY, true);
-    let search = engine.iterative_deepening(&mut test_board, 9, 10000);
+    let search = engine.search(&mut test_board, 6, f64::NEG_INFINITY, f64::INFINITY, true);
+    // let search = engine.iterative_deepening(&mut test_board, 9, 10000);
 
     println!("{:?}", search);
 
     println!("{:?}", test_board);
 
-    // engine.debug_move_sequence(&mut test_board, &search.moves, 6);
+    engine.debug_move_sequence(&mut test_board, &search.moves, 6);
 
     // let mut test_board_2 = Board::from_fen("2k5/1ppp4/pn6/5Q2/8/2B5/3q1rPP/6K1 w - - 2 3");
+
+    let mut mate_in_one = Board::from_fen("2k1r3/1ppp4/pn5B/8/8/8/1Q3PPP/6K1 b - - 0 1");
+
+    let search2 = engine.search(&mut mate_in_one, 3, f64::NEG_INFINITY, f64::INFINITY, true);
+    println!("{:?}", search2);
+    println!("{:?}", mate_in_one);
+
+    engine.debug_move_sequence(&mut mate_in_one, &search2.moves, 3);
 }

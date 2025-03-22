@@ -1,6 +1,6 @@
 use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Position};
-use crate::piece::{Piece, PieceColor, PieceType};
+use crate::piece::{PartialPiece, Piece, PieceColor, PieceType};
 
 pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
     let file = piece.pos.x;
@@ -121,7 +121,7 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_pawn(piece: &Piece, board: &Board) -> Vec<Control> {
+pub fn get_controlled_squares_pawn(piece: &PartialPiece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 

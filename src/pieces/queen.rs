@@ -1,6 +1,6 @@
 use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
-use crate::piece::{Piece, PieceType};
+use crate::piece::{PartialPiece, Piece, PieceType};
 
 const QUEEN_DIRECTIONS: [Vector; 8] = [
     Vector { x: -1, y: -1 },
@@ -61,7 +61,7 @@ pub fn get_legal_moves_queen(piece: &Piece, board: &Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_queen(piece: &Piece, board: &Board) -> Vec<Control> {
+pub fn get_controlled_squares_queen(piece: &PartialPiece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;
 

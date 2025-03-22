@@ -11,7 +11,7 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn from(x: isize, y: isize) -> Position {
+    pub fn from(x: isize, y: isize) -> Self {
         Position {
             x: Position::clamp(x),
             y: Position::clamp(y)
