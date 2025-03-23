@@ -1,6 +1,7 @@
 use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Position, Vector};
-use crate::piece::{PartialPiece, Piece};
+use crate::piece::{PartialPiece, Piece, PieceColor};
+use crate::pieces::bitboard::{AB_FILE_INV, A_FILE_INV, GH_FILE_INV, H_FILE_INV};
 
 const KNIGHT_DIRECTIONS: [Vector; 8] = [
     Vector { x: 2, y: -1 },
@@ -12,6 +13,63 @@ const KNIGHT_DIRECTIONS: [Vector; 8] = [
     Vector { x: -1, y: -2 },
     Vector { x: 1, y: -2 }
 ];
+
+pub fn get_legal_moves_knight_bitboard(piece: &Piece, board: &Board) -> Vec<Move> {
+    if board.is_pinned(piece.pos.y, piece.pos.x) { return Vec::with_capacity(0) };
+
+    let check_info = board.check.get(&piece.color);
+    if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
+
+    let pos = piece.pos.to_bitboard();
+    let mut moves = Vec::with_capacity(8);
+
+    let knight_moves = ((pos << 17) & A_FILE_INV) |
+                       ((pos << 15) & H_FILE_INV) |
+                       ((pos << 10) & AB_FILE_INV) |
+                       ((pos >> 6) & AB_FILE_INV) |
+                       ((pos >> 15) & A_FILE_INV) |
+                       ((pos >> 17) & H_FILE_INV) |
+                       ((pos << 6) & GH_FILE_INV) |
+                       ((pos >> 10) & GH_FILE_INV);
+
+    let valid_moves = knight_moves & (board.empty_squares | if piece.color == PieceColor::White { board.black_pieces } else { board.white_pieces });
+
+    let mut rem = valid_moves;
+    while rem != 0 {
+        let index = rem.trailing_zeros() as usize;
+        let to_pos = Position::from_bitboard(1u64 << index);
+
+        if let Some(check) = check_info {
+            if check.checked && check.block_positions.is_some() {
+                let block_pos = check.block_positions.as_ref().unwrap();
+                if !block_pos.contains(&to_pos) {
+                    rem &= rem - 1;
+                    continue;
+                }
+            }
+        }
+
+        let captured = board.get_piece_at(to_pos.y, to_pos.x);
+
+        moves.push(Move {
+            from: piece.pos,
+            to: to_pos,
+            move_type: vec![
+                if captured.is_some() { MoveType::Capture } else { MoveType::Normal }; 1
+            ],
+            captured,
+            promote_to: None,
+            piece_index: piece.index,
+            piece_color: piece.color,
+            piece_type: piece.piece_type,
+            with: None
+        });
+
+        rem &= rem - 1;
+    }
+
+    moves
+}
 
 pub fn get_legal_moves_knight(piece: &Piece, board: &Board) -> Vec<Move> {
     let file = piece.pos.x;

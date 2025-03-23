@@ -1,4 +1,4 @@
-use crate::moves::{Move, Position, Vector};
+use crate::moves::{Move, Position};
 
 
 #[derive(Debug, Clone, PartialEq, Copy, Hash)]

@@ -1,5 +1,5 @@
 use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, KILLER_MOVE_VALUE, PROMOTION_VALUE, PV_MOVE};
-use crate::evaluation::{evaluate, evaluate_move, EvaluationResult};
+use crate::evaluation::{evaluate, EvaluationResult};
 use crate::board::{Board, ResultType};
 use crate::moves::{Move, MoveType};
 use core::f64;

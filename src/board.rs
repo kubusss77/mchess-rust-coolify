@@ -5,9 +5,9 @@ use crate::r#const::{MOBILITY_VALUE, MOVE_PREALLOC};
 use crate::piece::{BasePiece, PartialPiece, Piece, PieceColor, PieceType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
 use crate::pieces::bishop::{get_controlled_squares_bishop, get_legal_moves_bishop, get_pins_bishop};
-use crate::pieces::king::{get_controlled_squares_king, get_legal_moves_king};
-use crate::pieces::knight::{get_controlled_squares_knight, get_legal_moves_knight};
-use crate::pieces::pawn::{get_controlled_squares_pawn, get_legal_moves_pawn};
+use crate::pieces::king::{get_controlled_squares_king, get_legal_moves_king_bitboard};
+use crate::pieces::knight::{get_controlled_squares_knight, get_legal_moves_knight_bitboard};
+use crate::pieces::pawn::{get_controlled_squares_pawn, get_legal_moves_pawn_bitboard};
 use crate::pieces::queen::{get_controlled_squares_queen, get_legal_moves_queen, get_pins_queen};
 use crate::pieces::rook::{get_controlled_squares_rook, get_legal_moves_rook, get_pins_rook};
 
@@ -149,6 +149,7 @@ pub struct Board {
     pub white_pieces: u64,
     pub black_pieces: u64,
     pub all_pieces: u64,
+    pub empty_squares: u64,
 
     pub board: Vec<Vec<isize>>,
     pub control_table: ControlTable,
@@ -191,6 +192,7 @@ impl Board {
             black_pieces: 0,
 
             all_pieces: 0,
+            empty_squares: !0,
 
             board: vec![vec![-1; 8]; 9],
             pieces: HashMap::new(),
@@ -365,6 +367,7 @@ impl Board {
             self.black_pieces |= square;
         }
         self.all_pieces |= square;
+        self.empty_squares = !self.all_pieces;
     }
 
     pub fn bb_and_rev_pos(&mut self, piece: BasePiece, pos: Position) {
@@ -399,6 +402,7 @@ impl Board {
             self.black_pieces = (self.black_pieces & from_bb) | to_bb;
         }
         self.all_pieces = (self.all_pieces & !from_bb) | to_bb;
+        self.empty_squares = !self.all_pieces;
     }
 
     pub fn clear(&mut self) {
@@ -447,12 +451,12 @@ impl Board {
         let piece = self.pieces.get(&piece_index).unwrap();
         
         let mut moves = match piece.piece_type {
-            PieceType::Pawn => get_legal_moves_pawn(&piece, self),
+            PieceType::Pawn => get_legal_moves_pawn_bitboard(&piece, self),
             PieceType::Bishop => get_legal_moves_bishop(&piece, self),
-            PieceType::Knight => get_legal_moves_knight(&piece, self),
+            PieceType::Knight => get_legal_moves_knight_bitboard(&piece, self),
             PieceType::Rook => get_legal_moves_rook(&piece, self),
             PieceType::Queen => get_legal_moves_queen(&piece, self),
-            PieceType::King => get_legal_moves_king(&piece, self)
+            PieceType::King => get_legal_moves_king_bitboard(&piece, self)
         };
 
         for m in &mut moves {
@@ -531,6 +535,13 @@ impl Board {
             
             let captured_piece_index = captured.to_piece_index();
             self.hash ^= self.hash_table[captured_piece_index * 64 + captured.pos.y * 8 + captured.pos.x];
+        }
+
+        if m.piece_type == PieceType::Pawn && (m.from.y as isize - m.to.y as isize).abs() == 2 {
+            let rank = (m.from.y + m.to.y) / 2;
+            self.target_square = Some(Position { x: m.to.x, y: rank });
+        } else {
+            self.target_square = None;
         }
 
         let piece = self.pieces.get_mut(&piece_index).unwrap();

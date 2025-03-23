@@ -1,30 +1,13 @@
-pub struct Bitboard {
-    pub white_pawns: u64,
-    pub white_knights: u64,
-    pub white_bishops: u64,
-    pub white_rooks: u64,
-    pub white_queens: u64,
-    pub white_king: u64,
-    pub black_pawns: u64,
-    pub black_knights: u64,
-    pub black_bishops: u64,
-    pub black_rooks: u64,
-    pub black_queens: u64,
-    pub black_king: u64,
+pub const RANK_1: u64 = 0x00000000000000FF;
+pub const RANK_2: u64 = 0x000000000000FF00;
+pub const RANK_3: u64 = 0x0000000000FF0000;
+pub const RANK_6: u64 = 0x0000FF0000000000;
+pub const RANK_7: u64 = 0x00FF000000000000;
+pub const RANK_8: u64 = 0xFF00000000000000;
 
-    pub white_pieces: u64,
-    pub black_pieces: u64,
-    pub all_pieces: u64,
-}
-
-pub fn bit(square: u8) -> u64 {
-    1u64 << square
-}
-
-pub fn square_to_index(file: u8, rank: u8) -> u8 {
-    rank * 8 + file
-}
-
-pub fn index_to_square(index: u8) -> (u8, u8) {
-    (index % 8, index / 8)
-}
+pub const A_FILE: u64 = 0x0101010101010101;
+pub const H_FILE: u64 = 0x8080808080808080;
+pub const A_FILE_INV: u64 = 0xFEFEFEFEFEFEFEFE;
+pub const AB_FILE_INV: u64 = 0xFCFCFCFCFCFCFCFC;
+pub const GH_FILE_INV: u64 = 0x3F3F3F3F3F3F3F3F;
+pub const H_FILE_INV: u64 = 0x7F7F7F7F7F7F7F7F;

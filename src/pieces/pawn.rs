@@ -1,6 +1,96 @@
 use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Position};
 use crate::piece::{PartialPiece, Piece, PieceColor, PieceType};
+use crate::pieces::bitboard::{A_FILE_INV, H_FILE_INV, RANK_3, RANK_6};
+
+fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board, moves: &mut Vec<Move>) {
+    if pos == 0 { return };
+
+    let position = Position::from_bitboard(pos);
+    let is_promotion = (piece.color == PieceColor::White && position.y == 0)
+                    || (piece.color == PieceColor::Black && position.y == 7);
+    let is_capture = &move_type == &MoveType::Capture;
+
+    if is_promotion {
+        for &promotion_type in &[PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight] {
+            let m = Move {
+                from: piece.pos,
+                to: position,
+                move_type: vec![move_type, MoveType::Promotion],
+                captured: if is_capture { board.get_piece_at(position.y, position.x) } else { None },
+                promote_to: Some(promotion_type),
+                piece_index: piece.index,
+                piece_color: piece.color,
+                piece_type: piece.piece_type,
+                with: None
+            };
+            moves.push(m);
+        }
+    } else {
+        let m = Move {
+            from: piece.pos,
+            to: position,
+            move_type: vec![move_type; 1],
+            captured: if is_capture { board.get_piece_at(position.y, position.x) } else { None },
+            promote_to: None,
+            piece_index: piece.index,
+            piece_color: piece.color,
+            piece_type: piece.piece_type,
+            with: None
+        };
+        moves.push(m);
+    }
+}
+
+pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> {
+    let pos = piece.pos.to_bitboard();
+    let mut moves = Vec::with_capacity(12);
+
+    if board.is_pinned(piece.pos.y, piece.pos.x) { return moves };
+
+    let single_push = if piece.color == PieceColor::White {
+        (pos >> 8) & board.empty_squares
+    } else {
+        (pos << 8) & board.empty_squares
+    };
+
+    let double_push = if piece.color == PieceColor::White {
+        ((single_push & RANK_3) >> 8) & board.empty_squares
+    } else {
+        ((single_push & RANK_6) << 8) & board.empty_squares
+    };
+
+    let left_capture = if piece.color == PieceColor::White {
+        ((pos & A_FILE_INV) >> 9) & board.black_pieces
+    } else {
+        ((pos & A_FILE_INV) << 7) & board.white_pieces
+    };
+
+    let right_capture = if piece.color == PieceColor::White {
+        ((pos & H_FILE_INV) >> 7) & board.black_pieces
+    } else {
+        ((pos & H_FILE_INV) << 9) & board.white_pieces
+    };
+
+    bitboard_to_move(piece, single_push, MoveType::Normal, board, &mut moves);
+    bitboard_to_move(piece, double_push, MoveType::Normal, board, &mut moves);
+    bitboard_to_move(piece, left_capture, MoveType::Capture, board, &mut moves);
+    bitboard_to_move(piece, right_capture, MoveType::Capture, board, &mut moves);
+
+    if let Some(target_square) = board.target_square {
+        let en_passant_pos = target_square.to_bitboard();
+
+        let en_passant_capture = if piece.color == PieceColor::White {
+            (((pos & A_FILE_INV) >> 9) | ((pos & H_FILE_INV) >> 7)) & en_passant_pos
+        } else {
+            (((pos & A_FILE_INV) << 7) | ((pos & H_FILE_INV) >> 9)) & en_passant_pos
+        };
+
+        bitboard_to_move(piece, en_passant_capture, MoveType::Capture, board, &mut moves);
+    }
+
+    moves
+}
 
 pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
     let file = piece.pos.x;

@@ -65,7 +65,7 @@ impl PartialEq for Vector {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MoveType {
     Normal,
     Capture,
