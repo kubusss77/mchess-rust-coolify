@@ -9,7 +9,8 @@ pub struct Chess {
     evaluation_cache: HashMap<i64, EvaluationResult>,
     move_evaluation_cache: HashMap<usize, f64>,
     transposition_table: HashMap<i64, Node>,
-    killer_moves: Vec<Vec<Option<Move>>>
+    killer_moves: Vec<Vec<Option<Move>>>,
+    pub nodes: u64
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -39,7 +40,8 @@ impl Chess {
             evaluation_cache: HashMap::new(),
             move_evaluation_cache: HashMap::new(),
             transposition_table: HashMap::new(),
-            killer_moves: vec![vec![None; 2]; 100]
+            killer_moves: vec![vec![None; 2]; 100],
+            nodes: 0
         }
     }
 
@@ -133,6 +135,7 @@ impl Chess {
     }
 
     pub fn search(&mut self, board: &mut Board, depth: u8, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
+        self.nodes += 1;
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
             return SearchResult {
@@ -167,12 +170,12 @@ impl Chess {
 
             let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
 
-            for m in legal_moves {
-                let history = board.make_move(&m);
+            for m in &legal_moves {
+                let history = board.make_move(m);
 
                 let result = self.search(board, depth - 1, alpha, beta, false);
 
-                board.unmake_move(&m, &history);
+                board.unmake_move(m, &history);
 
                 if result.value > value {
                     value = result.value;
@@ -222,12 +225,12 @@ impl Chess {
             
             let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
             
-            for m in legal_moves {
-                let history = board.make_move(&m);
+            for m in &legal_moves {
+                let history = board.make_move(m);
 
                 let result = self.search(board, depth - 1, alpha, beta, true);
 
-                board.unmake_move(&m, &history);
+                board.unmake_move(m, &history);
 
                 if result.value < value {
                     value = result.value;
@@ -371,10 +374,6 @@ impl Chess {
 
         for (i, _) in indices {
             result.push(moves[i].clone());
-        }
-
-        if depth == 6 {
-            println!("{:?}", result);
         }
         
         result

@@ -324,6 +324,8 @@ impl Board {
 
         board.gen_hash();
 
+        board.check_control_all();
+
         board
     }
 
@@ -712,8 +714,13 @@ impl Board {
             self.clear_control(piece_index);
             return;
         }
+
+        self.clear_control(piece_index);
+
         let piece = self.pieces.get(&piece_index).unwrap();
         let controlled_squares = self.get_controlled_squares(piece_index);
+
+        let mut lookup_entries = Vec::with_capacity(controlled_squares.len());
 
         let king = self.get_king(piece.color.opposite()).unwrap();
         let king_pos = king.pos;
@@ -736,10 +743,11 @@ impl Board {
                     } else {
                         check_info.block_positions = Some(vec![piece.pos]);
                     }
+                    check_info.checked = true;
                 }
             }
 
-            self.control_table[control.pos.x][control.pos.y].push(ControlTableEntry {
+            self.control_table[control.pos.y][control.pos.x].push(ControlTableEntry {
                 index: piece_index,
                 control_type: control.control_type,
                 color: piece.color,
@@ -747,8 +755,12 @@ impl Board {
                 is_king: piece.piece_type == PieceType::King,
                 origin: piece.to_partial()
             });
-            let table_lookup_entry = self.control_table_lookup.entry(piece_index).or_insert(vec![]);
-            table_lookup_entry.push((control.pos, control.control_type));
+
+            lookup_entries.push((control.pos, control.control_type));
+        }
+
+        if !lookup_entries.is_empty() {
+            self.control_table_lookup.insert(piece_index, lookup_entries);
         }
 
         self.mobility_cache.insert(piece_index, count as f64 * MOBILITY_VALUE);
@@ -774,19 +786,20 @@ impl Board {
     }
 
     pub fn get_king(&self, color: PieceColor) -> Option<Piece> {
-        if self.kings.contains_key(&color) {
-            return self.kings.get(&color).unwrap().clone()
+        if let Some(Some(king)) = self.kings.get(&color) {
+            return Some(king.clone());
         }
-        let king: Option<Piece> = self.pieces.values().find(|p| p.piece_type == PieceType::King && p.color == color).cloned();
         
-        king
+        self.pieces.values()
+            .find(|p| p.piece_type == PieceType::King && p.color == color)
+            .cloned()
     }
 
     pub fn get_result(&mut self) -> ResultType {
         let check = self.check.get(&self.turn).expect("Expected check information for both colors").clone();
         let king_index = self.get_king(self.turn).expect("Expected both kings").index;
-        if (check.double_checked || (check.checked && self.get_block_moves(self.turn).len() == 0)) && self.get_legal_moves(king_index).len() == 0 {
-            match self.turn.opposite() {
+        if (check.double_checked || (check.checked && self.get_block_moves(self.turn).is_empty())) && self.get_legal_moves(king_index).is_empty() {
+            match self.turn {
                 PieceColor::White => ResultType::BlackCheckmate,
                 PieceColor::Black => ResultType::WhiteCheckmate
             }
@@ -1004,4 +1017,11 @@ impl fmt::Debug for Board {
         }
         Ok(())
     }
+}
+
+#[test]
+fn result_check() {
+    let mut black_checkmate = Board::from_fen("2k5/1ppp4/pn5B/8/8/8/1Q3PPP/4r1K1 w - - 0 1");
+
+    assert!(black_checkmate.get_result() == ResultType::BlackCheckmate);
 }

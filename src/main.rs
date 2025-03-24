@@ -18,14 +18,14 @@ fn main() {
 
     println!("{:?}", evaluate(&mut test_board));
 
-    let search = engine.search(&mut test_board, 6, f64::NEG_INFINITY, f64::INFINITY, true);
+    let search = engine.search(&mut test_board, 7, f64::NEG_INFINITY, f64::INFINITY, true);
     // let search = engine.iterative_deepening(&mut test_board, 9, 10000);
 
     println!("{:?}", search);
 
     println!("{:?}", test_board);
 
-    engine.debug_move_sequence(&mut test_board, &search.moves, 6);
+    // engine.debug_move_sequence(&mut test_board, &search.moves, 6);
 
     // let mut test_board_2 = Board::from_fen("2k5/1ppp4/pn6/5Q2/8/2B5/3q1rPP/6K1 w - - 2 3");
 
@@ -35,5 +35,5 @@ fn main() {
     println!("{:?}", search2);
     println!("{:?}", mate_in_one);
 
-    engine.debug_move_sequence(&mut mate_in_one, &search2.moves, 3);
+    // engine.debug_move_sequence(&mut mate_in_one, &search2.moves, 3);
 }
