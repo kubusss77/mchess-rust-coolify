@@ -1,5 +1,5 @@
 use core::f64;
-use std::{fmt::Error, io::{self, Write}};
+use std::io::{self, Write};
 
 use crate::{board::Board, moves::{Move, MoveType}, piece::{PieceColor, PieceType}, search::Chess};
 
@@ -18,7 +18,7 @@ impl UciProtocol {
 
     pub fn run(&mut self) -> io::Result<()> {
         println!("id name mchess");
-        println!("id name ggod");
+        println!("id author ggod");
         println!("uciok");
 
         let stdin = io::stdin();

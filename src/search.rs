@@ -1,4 +1,4 @@
-use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, KILLER_MOVE_VALUE, PROMOTION_VALUE, PV_MOVE};
+use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, KILLER_MOVE_VALUE, MAX_WINDOW_WIDTH, PROMOTION_VALUE, PV_MOVE};
 use crate::evaluation::{evaluate, EvaluationResult};
 use crate::board::{Board, ResultType};
 use crate::moves::{Move, MoveType};
@@ -117,11 +117,49 @@ impl Chess {
         let start_time = std::time::Instant::now();
         let mut best_result = SearchResult { value: 0.0, moves: vec![] };
 
-        for depth in 1..=max_depth {
+        {
+            self.move_evaluation_cache.clear();
+            let result = self.search(board, 1, f64::NEG_INFINITY, f64::INFINITY, true);
+            best_result = result;
+
+            println!("Depth 1: Best moves {:?}, Score: {}", best_result.moves, best_result.value);
+        }
+
+        for depth in 2..=max_depth {
             self.move_evaluation_cache.clear();
 
-            let result = self.search(board, depth, f64::NEG_INFINITY, f64::INFINITY, true);
-            best_result = result;
+            let mut window = 25.0;
+            let mut alpha = best_result.value - window;
+            let mut beta = best_result.value + window;
+
+            loop {
+                let result = self.search(board, depth, alpha, beta, true);
+
+                if result.value > alpha && result.value < beta {
+                    best_result = result;
+                    break;
+                }
+
+                if result.value <= alpha {
+                    alpha = alpha - window;
+                    window = window * 2.0;
+
+                    if window > MAX_WINDOW_WIDTH {
+                        alpha = f64::NEG_INFINITY;
+                    }
+                } else if result.value >= beta {
+                    beta = beta + window;
+                    window = window * 2.0;
+
+                    if window > MAX_WINDOW_WIDTH {
+                        beta = f64::INFINITY;
+                    }
+                }
+
+                if alpha == f64::NEG_INFINITY && beta == f64::INFINITY {
+                    break;
+                }
+            }
 
             let elapsed = start_time.elapsed().as_millis() as u64;
             if elapsed > (time_limit * 3) / 4 {

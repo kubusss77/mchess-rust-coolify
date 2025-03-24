@@ -14,3 +14,4 @@ pub const LOW_SAFETY_PENALTY: f64 = 0.5;
 
 pub const MOVE_PREALLOC: usize = 30;
 pub const MAX_PLIES: u8 = 50;
+pub const MAX_WINDOW_WIDTH: f64 = 5000.0;
