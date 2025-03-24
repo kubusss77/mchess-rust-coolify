@@ -83,7 +83,7 @@ pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
         let en_passant_capture = if piece.color == PieceColor::White {
             (((pos & A_FILE_INV) >> 9) | ((pos & H_FILE_INV) >> 7)) & en_passant_pos
         } else {
-            (((pos & A_FILE_INV) << 7) | ((pos & H_FILE_INV) >> 9)) & en_passant_pos
+            (((pos & A_FILE_INV) << 7) | ((pos & H_FILE_INV) << 9)) & en_passant_pos
         };
 
         bitboard_to_move(piece, en_passant_capture, MoveType::Capture, board, &mut moves);

@@ -50,6 +50,10 @@ pub fn get_legal_moves_knight_bitboard(piece: &Piece, board: &Board) -> Vec<Move
         }
 
         let captured = board.get_piece_at(to_pos.y, to_pos.x);
+        if captured.as_ref().is_some_and(|p| p.color == piece.color) {
+            rem &= rem - 1;
+            continue;
+        }
 
         moves.push(Move {
             from: piece.pos,

@@ -1,4 +1,3 @@
-use core::f64;
 use std::io::{self, Write};
 
 use crate::{board::Board, moves::{Move, MoveType}, piece::{PieceColor, PieceType}, search::Chess};
@@ -39,8 +38,12 @@ impl UciProtocol {
                 "isready" => println!("readyok"),
                 cmd if cmd.starts_with("position") => self.handle_position(cmd),
                 cmd if cmd.starts_with("go") => self.handle_go(cmd),
+                "ucinewgame" => {
+                    self.board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                    self.engine = Chess::new();
+                }
                 "stop" => {
-
+                    // todo
                 },
                 _ => {}
             }
@@ -49,7 +52,7 @@ impl UciProtocol {
         }
 
         Ok(())
-    }    
+    }
 
     fn handle_position(&mut self, command: &str) {
         let parts: Vec<&str> = command.split_whitespace().collect();
@@ -58,11 +61,13 @@ impl UciProtocol {
         match *pos_type {
             "startpos" => {
                 self.board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                self.engine = Chess::new();
 
                 if let Some(moves_index) = parts.iter().position(|&p| p == "moves") {
                     for i in (moves_index + 1)..parts.len() {
                         let uci_move = parts[i];
-                        self.move_uci(uci_move);
+                        println!("info String {uci_move}");
+                        self.move_uci(uci_move.trim());
                     }
                 }
             },
@@ -74,7 +79,7 @@ impl UciProtocol {
                     if let Some(moves_index) = parts.iter().position(|&p| p == "moves") {
                         for i in (moves_index + 1)..parts.len() {
                             let uci_move = parts[i];
-                            self.move_uci(uci_move);
+                            self.move_uci(uci_move.trim());
                         }
                     }
                 }
@@ -86,19 +91,68 @@ impl UciProtocol {
     fn handle_go(&mut self, command: &str) {
         let parts: Vec<&str> = command.split_whitespace().collect();
         let mut depth = 5;
+        let mut time_limit = 5000;
+        let mut wtime = None;
+        let mut btime = None;
+        let mut winc = None;
+        let mut binc = None;
+        let mut movestogo = None;
+        let mut movetime = None;
 
         for i in 0..parts.len() - 1 {
             if parts[i] == "depth" {
                 if let Ok(d) = parts[i + 1].parse::<u8>() {
                     depth = d;
                 }
+            } else if parts[i] == "wtime" {
+                if let Ok(t) = parts[i + 1].parse::<u64>() {
+                    wtime = Some(t);
+                }
+            } else if parts[i] == "btime" {
+                if let Ok(t) = parts[i + 1].parse::<u64>() {
+                    btime = Some(t);
+                }
+            } else if parts[i] == "winc" {
+                if let Ok(inc) = parts[i + 1].parse::<u64>() {
+                    winc = Some(inc);
+                }
+            } else if parts[i] == "binc" {
+                if let Ok(inc) = parts[i + 1].parse::<u64>() {
+                    binc = Some(inc);
+                }
+            } else if parts[i] == "movestogo" {
+                if let Ok(mtg) = parts[i + 1].parse::<u32>() {
+                    movestogo = Some(mtg);
+                }
+            } else if parts[i] == "movetime" {
+                if let Ok(mt) = parts[i + 1].parse::<u64>() {
+                    movetime = Some(mt);
+                }
             }
         }
 
-        let turn = self.board.turn;
-        let result = self.engine.search(&mut self.board, depth, f64::NEG_INFINITY, f64::INFINITY, turn == PieceColor::White);
+        if let Some(mt) = movetime {
+            time_limit = mt;
+        } else if wtime.is_some() || btime.is_some() {
+            let is_white = self.board.turn == PieceColor::White;
+            let time = if is_white { wtime } else { btime };
+            let inc = if is_white { winc } else { binc };
+
+            if let Some(remaining) = time {
+                let moves_left = movestogo.unwrap_or(30);
+                let increment = inc.unwrap_or(0);
+
+                let base_time = remaining / moves_left as u64;
+                let allocated = base_time + increment / 2;
+
+                time_limit = std::cmp::min(allocated, remaining / 5);
+            }
+        }
+
+        let result = self.engine.iterative_deepening(&mut self.board, depth, time_limit);
 
         if let Some(best_move) = result.moves.first() {
+            println!("info string turn {:?} move clr {:?}", self.board.turn, best_move.piece_color);
             println!("bestmove {}", self.move_to_uci(best_move));
         } else {
             println!("bestmove 0000");
@@ -111,21 +165,28 @@ impl UciProtocol {
             return;
         }
 
+        println!("info String {uci_move} 2");
+
         let from_file = (uci_move.chars().nth(0).unwrap() as u8 - b'a') as usize;
         let from_rank = 8 - (uci_move.chars().nth(1).unwrap() as u8 - b'0') as usize;
         let to_file = (uci_move.chars().nth(2).unwrap() as u8 - b'a') as usize;
         let to_rank = 8 - (uci_move.chars().nth(3).unwrap() as u8 - b'0') as usize;
 
         let legal_moves = self.board.get_total_legal_moves(None);
+
+        println!("info String legal_moves {:?}", legal_moves);
         for m in legal_moves {
             if m.from.x == from_file && m.from.y == from_rank && m.to.x == to_file && m.to.y == to_rank {
                 if uci_move.len() > 4 {
+                    println!("info String > 4 {uci_move}");
                     if m.move_type.contains(&MoveType::Promotion) {
                         self.board.make_move(&m);
                         break;
                     }
                 } else {
+                    println!("info String turn bef {:?}", self.board.turn);
                     self.board.make_move(&m);
+                    println!("info String turn aft {:?}", self.board.turn);
                     break;
                 }
             }

@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{collections::HashMap, i64};
 
-use crate::r#const::{MOBILITY_VALUE, MOVE_PREALLOC};
+use crate::r#const::{MAX_PHASE, MOBILITY_VALUE, MOVE_PREALLOC};
 use crate::piece::{BasePiece, PartialPiece, Piece, PieceColor, PieceType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
 use crate::pieces::bishop::{get_controlled_squares_bishop, get_legal_moves_bishop, get_pins_bishop};
@@ -396,14 +396,17 @@ impl Board {
         self.bb_and_rev_pos(piece, from);
         
         let to_bb = to.to_bitboard();
-        let from_bb = !from.to_bitboard();
+        let from_bb = from.to_bitboard();
 
         if piece.1 == PieceColor::White {
-            self.white_pieces = (self.white_pieces & from_bb) | to_bb;
+            self.white_pieces &= !from_bb;
+            self.white_pieces |= to_bb;
         } else {
-            self.black_pieces = (self.black_pieces & from_bb) | to_bb;
+            self.black_pieces &= !from_bb;
+            self.black_pieces |= to_bb;
         }
-        self.all_pieces = (self.all_pieces & !from_bb) | to_bb;
+        self.all_pieces &= !from_bb;
+        self.all_pieces |= to_bb;
         self.empty_squares = !self.all_pieces;
     }
 
@@ -524,8 +527,6 @@ impl Board {
             affected_pieces: Vec::with_capacity(0)
         };
 
-        self.update_board(m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion));
-
         let piece_index = m.piece_index;
 
         self.update_bitboard_pos((m.piece_type, m.piece_color), m.from, m.to);
@@ -597,6 +598,8 @@ impl Board {
                 with: None
             });
         }
+
+        self.update_board(m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion));
 
         let mut affected = Vec::with_capacity(to_indices.len() + from_indices.len());
         affected.extend(to_indices);
@@ -944,6 +947,28 @@ impl Board {
         pin.len() > 0
     }
 
+    pub fn calculate_phase(&self) -> f64 {
+        let mut phase = MAX_PHASE;
+
+        for piece in self.pieces.values() {
+            if piece.piece_type == PieceType::King {
+                continue;
+            }
+
+            phase -= match piece.piece_type {
+                PieceType::Knight => 1,
+                PieceType::Bishop => 1,
+                PieceType::Rook => 2,
+                PieceType::Queen => 4,
+                _ => 0
+            };
+        }
+
+        phase = phase.clamp(0,  MAX_PHASE);
+
+        phase as f64 / MAX_PHASE as f64
+    }
+
     pub fn gen_hash(&mut self) {
         let mut hash_array = Vec::with_capacity(782);
         let mut hash = i64::MAX;
@@ -1024,4 +1049,13 @@ fn result_check() {
     let mut black_checkmate = Board::from_fen("2k5/1ppp4/pn5B/8/8/8/1Q3PPP/4r1K1 w - - 0 1");
 
     assert!(black_checkmate.get_result() == ResultType::BlackCheckmate);
+}
+
+#[test]
+fn turn_check() {
+    let mut board = Board::from_fen("2k2r2/1ppp4/pn5q/8/8/8/3B1PPP/1Q4K1 w - - 0 1");
+
+    board.update_board(false);
+
+    assert!(board.turn == PieceColor::Black);
 }

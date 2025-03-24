@@ -2,6 +2,7 @@ use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, KILLER_MOVE_VALUE, MAX_WINDOW_
 use crate::evaluation::{evaluate, EvaluationResult};
 use crate::board::{Board, ResultType};
 use crate::moves::{Move, MoveType};
+use crate::piece::PieceType;
 use core::f64;
 use std::collections::HashMap;
 
@@ -122,7 +123,7 @@ impl Chess {
             let result = self.search(board, 1, f64::NEG_INFINITY, f64::INFINITY, true);
             best_result = result;
 
-            println!("Depth 1: Best moves {:?}, Score: {}", best_result.moves, best_result.value);
+            // println!("Depth 1: Best moves {:?}, Score: {}, Nodes: {}", best_result.moves, best_result.value, self.nodes);
         }
 
         for depth in 2..=max_depth {
@@ -166,7 +167,7 @@ impl Chess {
                 break;
             }
 
-            println!("Depth {depth}: Best moves {:?}, Score: {}", best_result.moves, best_result.value)
+            // println!("Depth {depth}: Best moves {:?}, Score: {}, Nodes: {}", best_result.moves, best_result.value, self.nodes);
         }
 
         best_result
@@ -390,6 +391,25 @@ impl Chess {
 
         if m.move_type.contains(&MoveType::Castling) {
             value += CASTLING_VALUE;
+        }
+
+        value += m.ps_table(board);
+
+        if board.moves < 10 && m.piece_type == PieceType::Pawn {
+            value += 100.0;
+
+            let file = m.to.x;
+            let rank = m.to.y;
+
+            if (file == 3 || file == 4) && (rank >= 2 && rank <= 5) {
+                value += 200.0;
+            } else if (file >= 2 && file <= 5) && (rank >= 2 && rank <= 5) {
+                value += 50.0;
+            }
+
+            if (m.from.y as isize - rank as isize).abs() == 2 {
+                value += 100.0;
+            }
         }
 
         self.move_evaluation_cache.insert(m.hash(), value);

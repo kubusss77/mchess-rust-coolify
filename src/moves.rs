@@ -1,4 +1,6 @@
 use std::fmt;
+use crate::board::Board;
+use crate::evaluation::evaluate_position;
 use crate::r#const::MVV_LVA_VALUE;
 use crate::piece::{PieceType, PieceColor, Piece};
 use std::hash::{Hash, Hasher};
@@ -117,7 +119,7 @@ impl Move {
     }
 
     pub fn mvv_lva(&self) -> f64 {
-        if !self.move_type.contains(&MoveType::Capture) {
+        if !self.move_type.contains(&MoveType::Capture) || self.captured.is_none() {
             return 0.0;
         }
 
@@ -136,6 +138,15 @@ impl Move {
         };
 
         (piece_value(victim) - piece_value(aggressor)/10.0) * MVV_LVA_VALUE
+    }
+
+    pub fn ps_table(&self, board: &Board) -> f64 {
+        let x = self.to.x;
+        let y = self.to.y;
+
+        let y_index = if self.piece_color == PieceColor::White { y } else { 7 - y };
+
+        evaluate_position(board, self.piece_type, x, y_index)
     }
 }
 

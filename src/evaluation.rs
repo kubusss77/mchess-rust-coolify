@@ -60,10 +60,12 @@ pub fn evaluate(board: &mut Board) -> EvaluationResult {
     let pawns = evaluate_pawns(board);
     let mobility = evaluate_mobility(board);
     let piece_safety = evaluate_piece_safety(board);
+    let positions = evaluate_positions(board);
 
     EvaluationResult::combine(value, 
         EvaluationResult::combine(pawns, 
-            EvaluationResult::combine(mobility, piece_safety)))
+            EvaluationResult::combine(mobility, 
+                EvaluationResult::combine(piece_safety, positions))))
 }
 
 pub fn evaluate_pawns(board: &mut Board) -> EvaluationResult {
@@ -160,7 +162,41 @@ pub fn evaluate_piece_safety(board: &mut Board) -> EvaluationResult {
     value
 }
 
-pub fn evaluate_king_safety(board: &mut Board) -> EvaluationResult {
+pub fn evaluate_position(board: &Board, piece_type: PieceType, x: usize, y: usize) -> f64 {
+    match piece_type {
+        PieceType::Pawn => PAWN_TABLE[y][x],
+        PieceType::Knight => KNIGHT_TABLE[y][x],
+        PieceType::Bishop => BISHOP_TABLE[y][x],
+        PieceType::Rook => ROOK_TABLE[y][x],
+        PieceType::Queen => QUEEN_TABLE[y][x],
+        PieceType::King => {
+            let phase = board.calculate_phase();
+            (KING_MIDDLEGAME_TABLE[y][x] * (1.0 - phase)) + (KING_ENDGAME_TABLE[y][x] * phase)
+        }
+    }
+}
+
+pub fn evaluate_positions(board: &Board) -> EvaluationResult {
+    let mut value = EvaluationResult::default();
+
+    for piece in board.pieces.values() {
+        let x = piece.pos.x;
+        let y = piece.pos.y;
+
+        let y_index = if piece.color == PieceColor::White { y } else { 7 - y };
+
+        let position_value = evaluate_position(board, piece.piece_type, x, y_index);
+
+        match piece.color {
+            PieceColor::White => value.white += position_value,
+            PieceColor::Black => value.black += position_value
+        };
+    }
+
+    value
+}
+
+pub fn evaluate_king_safety(board: &Board) -> EvaluationResult {
     todo!()
 }
 
