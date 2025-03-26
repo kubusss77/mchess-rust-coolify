@@ -16,10 +16,12 @@ fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board,
             return;
         }
         if pin.x != 0 && pin.y != 0 {
-            let x_diff = position.x as isize - piece.pos.x as isize;
-            let y_diff = position.y as isize - piece.pos.y as isize;
+            let x_diff = (position.x as isize - piece.pos.x as isize).signum();
+            let y_diff = (position.y as isize - piece.pos.y as isize).signum();
 
-            if x_diff != pin.x || y_diff != pin.y {
+            let vec = Vector { x: x_diff, y: y_diff };
+
+            if !vec.is_parallel_to(pin) {
                 return;
             }
         }
@@ -56,7 +58,7 @@ fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board,
     }
 }
 
-pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> {
+pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
     let pos = piece.pos.to_bitboard();
     let mut moves = Vec::with_capacity(12);
 
@@ -123,124 +125,66 @@ pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
     moves
 }
 
-pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
-    let file = piece.pos.x;
-    let rank = piece.pos.y;
+pub fn get_controlled_squares_pawn_bitboard(piece: &PartialPiece, board: &Board) -> Vec<Control> {
+    let pos = piece.pos.to_bitboard();
+    let mut controlled = Vec::with_capacity(2);
 
-    let dir: isize = if piece.color == PieceColor::White { -1 } else { 1 };
+    let left_capture = if piece.color == PieceColor::White {
+        (pos & A_FILE_INV) >> 9
+    } else {
+        (pos & A_FILE_INV) << 7
+    };
 
-    let check_info = board.check.get(&piece.color);
+    let right_capture = if piece.color == PieceColor::White {
+        (pos & H_FILE_INV) >> 7
+    } else {
+        (pos & H_FILE_INV) << 9
+    };
 
-    // it doesnt matter, pawns are not using get_legal_moves_pawn anymore and this function will be deleted in the next refactor
-    if board.is_pinned(rank, file).is_some() { return Vec::with_capacity(0) };
-    if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
+    let attacks = left_capture | right_capture;
 
-    let promotion_rank = if piece.color == PieceColor::White { 7 } else { 0 };
-    let initial_rank = if piece.color == PieceColor::White { 6 } else { 2 };
-    
-    let advanced_rank = Position::clamp(rank as isize + dir);
+    if attacks == 0 {
+        return controlled;
+    }
 
-    let mut moves: Vec<Move> = Vec::with_capacity(12);
+    let friendly = if piece.color == PieceColor::White {
+        board.white_pieces
+    } else {
+        board.black_pieces
+    };
 
-    if board.is_empty(advanced_rank, file) {
-        if advanced_rank == promotion_rank {
-            for &piece_type in &[ PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen ] {
-                moves.push(Move {
-                    from: piece.pos,
-                    to: Position { x: file, y: advanced_rank },
-                    move_type: vec![ MoveType::Promotion; 1 ],
-                    captured: None,
-                    promote_to: Some(piece_type),
-                    piece_index: piece.index,
-                    piece_color: piece.color,
-                    piece_type: piece.piece_type,
-                    with: None
-                });
-            }
+    let enemy = if piece.color == PieceColor::White {
+        board.black_pieces
+    } else {
+        board.white_pieces
+    };
+
+    let mut rem = attacks;
+    while rem != 0 {
+        let index = rem.trailing_zeros() as usize;
+        let square = 1u64 << index;
+        let to_pos = Position::from_bitboard(square);
+
+        let control_type = if square & friendly != 0 {
+            ControlType::Defend
+        } else if square & enemy != 0 {
+            ControlType::Attack
         } else {
-            moves.push(Move {
-                from: piece.pos,
-                to: Position { x: file, y: advanced_rank },
-                move_type: vec![ MoveType::Normal; 1 ],
-                captured: None,
-                promote_to: None,
-                piece_index: piece.index,
-                piece_color: piece.color,
-                piece_type: piece.piece_type,
-                with: None
-            });
-        }
-    }
+            ControlType::Control
+        };
 
-    if rank == initial_rank && board.is_empty(advanced_rank, file) && board.is_empty(Position::clamp(rank as isize + dir * 2), file) {
-        moves.push(Move {
-            from: piece.pos,
-            to: Position { x: file, y: Position::clamp(rank as isize + dir * 2) },
-            move_type: vec![ MoveType::Normal; 1 ],
-            captured: None,
-            promote_to: None,
-            piece_index: piece.index,
-            piece_color: piece.color,
-            piece_type: piece.piece_type,
-            with: None
+        controlled.push(Control {
+            pos: to_pos,
+            control_type,
+            color: piece.color,
+            direction: None,
+            obscured: false
         });
+
+        rem &= rem - 1;
     }
 
-    for square in [-1, 1] {
-        let advanced_file = Position::clamp(file as isize + square);
-        if !Board::in_bounds(advanced_rank, advanced_file) { continue };
-        let other = board.get_piece_at(advanced_rank, advanced_file);
-        if other.as_ref().is_some_and(|p| p.color != piece.color) {
-            if advanced_rank == promotion_rank {
-                for piece_type in [ PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen ] {
-                    moves.push(Move {
-                        from: piece.pos,
-                        to: Position { x: advanced_file, y: advanced_rank },
-                        move_type: vec![ MoveType::Promotion, MoveType::Capture ],
-                        captured: other.clone(),
-                        promote_to: Some(piece_type),
-                        piece_index: piece.index,
-                        piece_color: piece.color,
-                        piece_type: piece.piece_type,
-                        with: None
-                    });
-                }
-            } else {
-                moves.push(Move {
-                    from: piece.pos,
-                    to: Position { x: advanced_file, y: advanced_rank },
-                    move_type: vec![ MoveType::Capture; 1 ],
-                    captured: other.clone(),
-                    promote_to: None,
-                    piece_index: piece.index,
-                    piece_color: piece.color,
-                    piece_type: piece.piece_type,
-                    with: None
-                });
-            }
-        }
-        
-        if board.target_square.is_some() {
-            let t_rank = board.target_square.clone().unwrap().x;
-            let t_file = board.target_square.clone().unwrap().y;
-
-            if advanced_rank == t_rank && advanced_file == t_file {
-                moves.push(Move {
-                    from: piece.pos,
-                    to: Position { x: advanced_file, y: advanced_rank },
-                    move_type: vec![ MoveType::Capture; 1 ],
-                    captured: board.get_piece_at(rank, advanced_file),
-                    promote_to: None,
-                    piece_index: piece.index,
-                    piece_color: piece.color,
-                    piece_type: piece.piece_type,
-                    with: None
-                });
-            }
-        }
-    }
-
-    moves
+    controlled
 }
 
 pub fn get_controlled_squares_pawn(piece: &PartialPiece, board: &Board) -> Vec<Control> {

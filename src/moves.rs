@@ -54,10 +54,26 @@ pub struct Vector {
 }
 
 impl Vector {
-    pub fn in_direction(&self, _pos1: Position, _pos2: Position) -> bool {
-        let pos1 = _pos1.to_vector();
-        let pos2 = _pos2.to_vector();
-        pos2.x * self.x >= pos1.x * self.x && pos2.y * self.y >= pos1.y * self.y
+    pub fn in_direction(&self, pos1: Position, pos2: Position) -> bool {
+        let vec1 = pos1.to_vector();
+        let vec2 = pos2.to_vector();
+        vec1.x * self.x >= vec1.x * self.x && vec2.y * self.y >= vec2.y * self.y
+    }
+
+    pub fn between(pos1: Position, pos2: Position) -> Vector {
+        let vec1 = pos1.to_vector();
+        let vec2 = pos2.to_vector();
+        let x_diff = vec1.x - vec2.x;
+        let y_diff = vec1.y - vec2.y;
+
+        Vector {
+            x: x_diff.signum(),
+            y: y_diff.signum()
+        }
+    }
+ 
+    pub fn is_parallel_to(&self, other: Vector) -> bool {
+        (self.x == other.x && self.y == other.y) || (self.x == -other.x && self.y == -other.y)
     }
 }
 

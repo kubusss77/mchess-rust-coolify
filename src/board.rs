@@ -4,12 +4,12 @@ use std::{collections::HashMap, i64};
 use crate::r#const::{MAX_PHASE, MOBILITY_VALUE, MOVE_PREALLOC};
 use crate::piece::{BasePiece, PartialPiece, Piece, PieceColor, PieceType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
-use crate::pieces::bishop::{get_controlled_squares_bishop, get_legal_moves_bishop, get_pins_bishop};
-use crate::pieces::king::{get_controlled_squares_king, get_legal_moves_king_bitboard};
-use crate::pieces::knight::{get_controlled_squares_knight, get_legal_moves_knight_bitboard};
-use crate::pieces::pawn::{get_controlled_squares_pawn, get_legal_moves_pawn_bitboard};
-use crate::pieces::queen::{get_controlled_squares_queen, get_legal_moves_queen, get_pins_queen};
-use crate::pieces::rook::{get_controlled_squares_rook, get_legal_moves_rook, get_pins_rook};
+use crate::pieces::bishop::{get_controlled_squares_bishop, get_controlled_squares_bishop_bitboard, get_legal_moves_bishop, get_legal_moves_bishop_bitboard, get_pins_bishop};
+use crate::pieces::king::{get_controlled_squares_king, get_controlled_squares_king_bitboard, get_legal_moves_king_bitboard};
+use crate::pieces::knight::{get_controlled_squares_knight, get_controlled_squares_knight_bitboard, get_legal_moves_knight_bitboard};
+use crate::pieces::pawn::{get_controlled_squares_pawn, get_controlled_squares_pawn_bitboard, get_legal_moves_pawn};
+use crate::pieces::queen::{get_controlled_squares_queen, get_controlled_squares_queen_bitboard, get_legal_moves_queen, get_legal_moves_queen_bitboard, get_pins_queen};
+use crate::pieces::rook::{get_controlled_squares_rook, get_controlled_squares_rook_bitboard, get_legal_moves_rook, get_legal_moves_rook_bitboard, get_pins_rook};
 
 use rand::rngs::StdRng;
 use rand::{SeedableRng, Rng};
@@ -456,11 +456,11 @@ impl Board {
         let piece = self.pieces.get(&piece_index).unwrap();
         
         let mut moves = match piece.piece_type {
-            PieceType::Pawn => get_legal_moves_pawn_bitboard(&piece, self),
-            PieceType::Bishop => get_legal_moves_bishop(&piece, self),
+            PieceType::Pawn => get_legal_moves_pawn(&piece, self),
+            PieceType::Bishop => get_legal_moves_bishop_bitboard(&piece, self),
             PieceType::Knight => get_legal_moves_knight_bitboard(&piece, self),
-            PieceType::Rook => get_legal_moves_rook(&piece, self),
-            PieceType::Queen => get_legal_moves_queen(&piece, self),
+            PieceType::Rook => get_legal_moves_rook_bitboard(&piece, self),
+            PieceType::Queen => get_legal_moves_queen_bitboard(&piece, self),
             PieceType::King => get_legal_moves_king_bitboard(&piece, self)
         };
 
@@ -685,12 +685,12 @@ impl Board {
 
     fn get_piece_control(&self, partial: &PartialPiece) -> Vec<Control> { 
         match partial.piece_type {
-            PieceType::Pawn => get_controlled_squares_pawn(partial, self),
-            PieceType::Knight => get_controlled_squares_knight(partial, self),
-            PieceType::Bishop => get_controlled_squares_bishop(partial, self),
-            PieceType::Rook => get_controlled_squares_rook(partial, self),
-            PieceType::Queen => get_controlled_squares_queen(partial, self),
-            PieceType::King => get_controlled_squares_king(partial, self),
+            PieceType::Pawn => get_controlled_squares_pawn_bitboard(partial, self),
+            PieceType::Knight => get_controlled_squares_knight_bitboard(partial, self),
+            PieceType::Bishop => get_controlled_squares_bishop_bitboard(partial, self),
+            PieceType::Rook => get_controlled_squares_rook_bitboard(partial, self),
+            PieceType::Queen => get_controlled_squares_queen_bitboard(partial, self),
+            PieceType::King => get_controlled_squares_king_bitboard(partial, self),
         }
     }
 

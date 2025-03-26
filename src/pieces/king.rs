@@ -167,6 +167,63 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
     moves
 }
 
+pub fn get_controlled_squares_king_bitboard(piece: &PartialPiece, board: &Board) -> Vec<Control> {
+    let pos = piece.pos.to_bitboard();
+    let mut controlled = Vec::with_capacity(8);
+
+    let king_moves = ((pos << 1) & H_FILE_INV) |
+                     ((pos >> 1) & A_FILE_INV) |
+                     (pos << 8) |
+                     (pos >> 8) |
+                     ((pos << 9) & H_FILE_INV) |
+                     ((pos << 7) & A_FILE_INV) |
+                     ((pos >> 7) & H_FILE_INV) |
+                     ((pos >> 9) & A_FILE_INV);
+    
+    if king_moves == 0 {
+        return controlled;
+    }
+
+    let friendly = if piece.color == PieceColor::White {
+        board.white_pieces
+    } else {
+        board.black_pieces
+    };
+
+    let enemy = if piece.color == PieceColor::White {
+        board.black_pieces
+    } else {
+        board.white_pieces
+    };
+
+    let mut rem = king_moves;
+    while rem != 0 {
+        let index = rem.trailing_zeros() as usize;
+        let square = 1u64 << index;
+        let to_pos = Position::from_bitboard(square);
+
+        let control_type = if square & friendly != 0 {
+            ControlType::Defend
+        } else if square & enemy != 0 {
+            ControlType::Attack
+        } else {
+            ControlType::Control
+        };
+
+        controlled.push(Control {
+            pos: to_pos,
+            control_type,
+            color: piece.color,
+            direction: None,
+            obscured: false
+        });
+
+        rem &= rem - 1;
+    }
+
+    controlled
+}
+
 pub fn get_controlled_squares_king(piece: &PartialPiece, board: &Board) -> Vec<Control> {
     let file = piece.pos.x;
     let rank = piece.pos.y;

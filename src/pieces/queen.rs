@@ -1,6 +1,9 @@
 use crate::board::{Board, Control, ControlType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
-use crate::piece::{PartialPiece, Piece, PieceType};
+use crate::piece::{PartialPiece, Piece, PieceColor, PieceType};
+
+use super::bishop::generate_bishop_rays;
+use super::rook::generate_rook_rays;
 
 const QUEEN_DIRECTIONS: [Vector; 8] = [
     Vector { x: -1, y: -1 },
@@ -12,6 +15,70 @@ const QUEEN_DIRECTIONS: [Vector; 8] = [
     Vector { x: 0, y: -1 },
     Vector { x: 0, y: 1}
 ];
+
+fn generate_queen_rays(pos: u64, occupied: u64, enemy_king: u64, let_through: bool) -> (u64, u64) {
+    let (b_attacks, b_obscured) = generate_bishop_rays(pos, occupied, enemy_king, let_through);
+    let (r_attacks, r_obscured) = generate_rook_rays(pos, occupied, enemy_king, let_through);
+
+    (b_attacks | r_attacks, b_obscured | r_obscured)
+}
+
+pub fn get_legal_moves_queen_bitboard(piece: &Piece, board: &Board) -> Vec<Move> {
+    let pos = piece.pos.to_bitboard();
+    let mut moves = Vec::with_capacity(27);
+
+    let pin_dir = board.is_pinned(piece.pos.y, piece.pos.x);
+    let check_info = board.check.get(&piece.color);
+    if check_info.is_some_and(|c| c.double_checked) { return moves; }
+
+    let (attacks, _) = generate_queen_rays(pos, board.all_pieces, 0u64, false);
+
+    let enemy = if piece.color == PieceColor::White {
+        board.black_pieces
+    } else {
+        board.white_pieces
+    };
+
+    let valid_moves = attacks & (board.empty_squares | enemy);
+
+    let mut rem = valid_moves;
+    while rem != 0 {
+        let index = rem.trailing_zeros() as usize;
+        let square = 1u64 << index;
+        let to_pos = Position::from_bitboard(square);
+
+        if let Some(pin) = pin_dir {
+            let x_diff = (to_pos.x as isize - piece.pos.x as isize).signum();
+            let y_diff = (to_pos.y as isize - piece.pos.y as isize).signum();
+
+            let vec = Vector { x: x_diff, y: y_diff };
+
+            if !vec.is_parallel_to(pin) {
+                rem &= rem - 1;
+                continue;
+            }
+        }
+
+        let is_capture = square & enemy != 0;
+        let captured = if is_capture { board.get_piece_at(to_pos.y, to_pos.x) } else { None };
+        
+        moves.push(Move {
+            from: piece.pos,
+            to: to_pos,
+            move_type: vec![if is_capture { MoveType::Capture } else { MoveType::Normal }; 1],
+            captured,
+            promote_to: None,
+            piece_index: piece.index,
+            piece_color: piece.color,
+            piece_type: piece.piece_type,
+            with: None
+        });
+
+        rem &= rem - 1;
+    }
+
+    moves
+}
 
 pub fn get_legal_moves_queen(piece: &Piece, board: &Board) -> Vec<Move> {
     let file = piece.pos.x;
@@ -63,6 +130,54 @@ pub fn get_legal_moves_queen(piece: &Piece, board: &Board) -> Vec<Move> {
     }
 
     moves
+}
+
+pub fn get_controlled_squares_queen_bitboard(piece: &PartialPiece, board: &Board) -> Vec<Control> {
+    let pos = piece.pos.to_bitboard();
+    let mut controlled = Vec::with_capacity(27);
+
+    let (attacks, obscured) = generate_queen_rays(pos, board.all_pieces, if piece.color == PieceColor::White { board.black_king } else { board.white_king }, true);
+
+    let friendly = if piece.color == PieceColor::White {
+        board.white_pieces
+    } else {
+        board.black_pieces
+    };
+
+    let enemy = if piece.color == PieceColor::White {
+        board.black_pieces
+    } else {
+        board.white_pieces
+    };
+
+    let mut rem = attacks;
+    while rem != 0 {
+        let index = rem.trailing_zeros() as usize;
+        let square = 1u64 << index;
+        let to_pos = Position::from_bitboard(square);
+
+        let control_type = if square & friendly != 0 {
+            ControlType::Defend
+        } else if square & enemy != 0 {
+            ControlType::Attack
+        } else {
+            ControlType::Control
+        };
+
+        let is_obscured = (square & obscured) != 0;
+
+        controlled.push(Control {
+            pos: to_pos,
+            control_type,
+            color: piece.color,
+            direction: Some(Vector::between(piece.pos, to_pos)),
+            obscured: is_obscured
+        });
+
+        rem &= rem - 1;
+    }
+
+    controlled
 }
 
 pub fn get_controlled_squares_queen(piece: &PartialPiece, board: &Board) -> Vec<Control> {
