@@ -779,11 +779,11 @@ impl Board {
     pub fn promote_to(&mut self, piece_index: usize, piece_type: PieceType) {
         let piece = self.pieces.get_mut(&piece_index).unwrap();
         
-        self.hash ^= self.hash_table[piece_index * 64 + piece.pos.y * 8 + piece.pos.x];
+        self.hash ^= self.hash_table[piece.to_piece_index() * 64 + piece.pos.y * 8 + piece.pos.x];
         
         piece.piece_type = piece_type;
 
-        self.hash ^= self.hash_table[piece_index * 64 + piece.pos.y * 8 + piece.pos.x];
+        self.hash ^= self.hash_table[piece.to_piece_index() * 64 + piece.pos.y * 8 + piece.pos.x];
 
         self.check_control(piece_index);
     }

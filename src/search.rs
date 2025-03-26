@@ -126,7 +126,7 @@ impl Chess {
 
     pub fn iterative_deepening(&mut self, board: &mut Board, max_depth: u8, time_limit: u64) -> SearchResult {
         let start_time = std::time::Instant::now();
-        let mut best_result = SearchResult { value: 0.0, moves: vec![] };
+        let mut best_result;
 
         {
             self.move_evaluation_cache.clear();
