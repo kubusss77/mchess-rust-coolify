@@ -165,7 +165,7 @@ impl UciProtocol {
             return;
         }
 
-        println!("info String {uci_move} 2");
+        println!("info string {uci_move} 2");
 
         let from_file = (uci_move.chars().nth(0).unwrap() as u8 - b'a') as usize;
         let from_rank = 8 - (uci_move.chars().nth(1).unwrap() as u8 - b'0') as usize;
@@ -174,19 +174,19 @@ impl UciProtocol {
 
         let legal_moves = self.board.get_total_legal_moves(None);
 
-        println!("info String legal_moves {:?}", legal_moves);
+        println!("info string legal_moves {:?}", legal_moves);
         for m in legal_moves {
             if m.from.x == from_file && m.from.y == from_rank && m.to.x == to_file && m.to.y == to_rank {
                 if uci_move.len() > 4 {
-                    println!("info String > 4 {uci_move}");
+                    println!("info string > 4 {uci_move}");
                     if m.move_type.contains(&MoveType::Promotion) {
                         self.board.make_move(&m);
                         break;
                     }
                 } else {
-                    println!("info String turn bef {:?}", self.board.turn);
+                    println!("info string turn bef {:?}", self.board.turn);
                     self.board.make_move(&m);
-                    println!("info String turn aft {:?}", self.board.turn);
+                    println!("info string turn aft {:?}", self.board.turn);
                     break;
                 }
             }

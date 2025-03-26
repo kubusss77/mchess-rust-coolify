@@ -1,4 +1,4 @@
-use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, KILLER_MOVE_VALUE, MAX_WINDOW_WIDTH, PROMOTION_VALUE, PV_MOVE};
+use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, DEFAULT_MARGIN, KILLER_MOVE_VALUE, MAX_WINDOW_WIDTH, PROMOTION_VALUE, PV_MOVE};
 use crate::evaluation::{evaluate, EvaluationResult};
 use crate::board::{Board, ResultType};
 use crate::moves::{Move, MoveType};
@@ -209,6 +209,24 @@ impl Chess {
             }
         }
 
+        if depth <= 2 && !board.check.get(&board.turn).unwrap().checked {
+            let eval = self.evaluate(board).to_value();
+
+            let margin = DEFAULT_MARGIN * depth as f64;
+
+            if maximizer && eval + margin <= _alpha {
+                return SearchResult {
+                    value: eval,
+                    moves: vec![]
+                };
+            } else if !maximizer && eval - margin >= _beta {
+                return SearchResult {
+                    value: eval,
+                    moves: vec![]
+                }
+            }
+        }
+
         let start_hash = board.hash;
 
         let mut alpha = _alpha;
@@ -235,10 +253,23 @@ impl Chess {
 
             let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
 
-            for m in &legal_moves {
+            for (i, m) in legal_moves.iter().enumerate() {
                 let history = board.make_move(m);
 
-                let result = self.search(board, depth - 1, alpha, beta, false);
+                let new_depth = if i >= 3 && depth >= 3
+                    && !m.move_type.contains(&MoveType::Capture)
+                    && !m.move_type.contains(&MoveType::Check) {
+                    depth - 1 - (i / 6).min(2) as u8
+                } else {
+                    depth - 1
+                };
+                                    
+
+                let mut result = self.search(board, new_depth, alpha, beta, false);
+
+                if new_depth < depth - 1 && result.value > alpha {
+                    result = self.search(board, depth - 1, alpha, beta, !maximizer);
+                }
 
                 board.unmake_move(m, &history);
 
@@ -261,7 +292,7 @@ impl Chess {
                 }
 
                 if beta <= alpha {
-                    self.store_killer_move(&m, depth);
+                    self.store_killer_move(m, depth);
 
                     node_type = NodeType::Cut;
                     break
@@ -316,7 +347,7 @@ impl Chess {
                 }
 
                 if beta <= alpha {
-                    self.store_killer_move(&m, depth);
+                    self.store_killer_move(m, depth);
 
                     node_type = NodeType::Cut;
                     break
@@ -341,7 +372,10 @@ impl Chess {
             return None
         }
 
-        let r = 2 + depth / 6;
+        let eval = self.evaluate(board);
+        let pos_value = eval.to_value().abs();
+
+        let r = if pos_value > 1.5 { 3 + depth / 4 } else { 2 + depth / 6 };
 
         board.turn = board.turn.opposite();
         board.hash ^= board.hash_table[12 * 64 + 4];
