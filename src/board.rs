@@ -154,7 +154,7 @@ pub struct Board {
     pub board: Vec<Vec<isize>>,
     pub control_table: ControlTable,
     pub control_table_lookup: ControlTableLookup,
-    pub pin_table: Vec<Vec<Vec<(Position, Position)>>>,
+    pub pin_table: Vec<Vec<Vec<Pin>>>,
     pub pieces: HashMap<usize, Piece>,
     pub moves: i32,
     pub halfmove_clock: i32,
@@ -940,11 +940,21 @@ impl Board {
         self.board[file][rank] == -1
     }
 
-    pub fn is_pinned(&self, rank: usize, file: usize) -> bool {
-        if !Board::in_bounds(rank, file) { return false };
-        if self.is_empty(rank, file) { return false };
-        let pin = &self.pin_table[rank][file];
-        pin.len() > 0
+    pub fn is_pinned(&self, rank: usize, file: usize) -> Option<Vector> {
+        if !Board::in_bounds(rank, file) { return None };
+        if self.is_empty(rank, file) { return None };
+        let pos = Position {
+            x: file,
+            y: rank
+        };
+        let pins = &self.pin_table[rank][file];
+        let mut dir = None;
+        for pin in pins {
+            if pin.dir.in_direction(pos, pin.position) {
+                dir = Some(pin.dir);
+            }
+        }
+        return dir;
     }
 
     pub fn calculate_phase(&self) -> f64 {

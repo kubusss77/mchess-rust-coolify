@@ -15,7 +15,7 @@ const KNIGHT_DIRECTIONS: [Vector; 8] = [
 ];
 
 pub fn get_legal_moves_knight_bitboard(piece: &Piece, board: &Board) -> Vec<Move> {
-    if board.is_pinned(piece.pos.y, piece.pos.x) { return Vec::with_capacity(0) };
+    if board.is_pinned(piece.pos.y, piece.pos.x).is_some() { return Vec::with_capacity(0) };
 
     let check_info = board.check.get(&piece.color);
     if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
@@ -81,7 +81,7 @@ pub fn get_legal_moves_knight(piece: &Piece, board: &Board) -> Vec<Move> {
     
     let check_info = board.check.get(&piece.color);
 
-    if board.is_pinned(rank, file) { return Vec::with_capacity(0) };
+    if board.is_pinned(rank, file).is_some() { return Vec::with_capacity(0) };
     if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
 
     let mut moves: Vec<Move> = Vec::with_capacity(8);

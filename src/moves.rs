@@ -163,5 +163,6 @@ impl Eq for Move {}
 pub struct Pin {
     pub position: Position,
     pub to: Position,
-    pub color: PieceColor
+    pub color: PieceColor,
+    pub dir: Vector
 }

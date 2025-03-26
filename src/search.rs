@@ -11,7 +11,8 @@ pub struct Chess {
     move_evaluation_cache: HashMap<usize, f64>,
     transposition_table: HashMap<i64, Node>,
     killer_moves: Vec<Vec<Option<Move>>>,
-    pub nodes: u64
+    pub nodes: u64,
+    is_stopping: bool
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -42,7 +43,8 @@ impl Chess {
             move_evaluation_cache: HashMap::new(),
             transposition_table: HashMap::new(),
             killer_moves: vec![vec![None; 2]; 100],
-            nodes: 0
+            nodes: 0,
+            is_stopping: false
         }
     }
 
@@ -114,6 +116,14 @@ impl Chess {
         }
     }
 
+    pub fn stop(&mut self) {
+        self.is_stopping = true;
+    }
+
+    pub fn reset_stop(&mut self) {
+        self.is_stopping = false;
+    }
+
     pub fn iterative_deepening(&mut self, board: &mut Board, max_depth: u8, time_limit: u64) -> SearchResult {
         let start_time = std::time::Instant::now();
         let mut best_result = SearchResult { value: 0.0, moves: vec![] };
@@ -123,7 +133,7 @@ impl Chess {
             let result = self.search(board, 1, f64::NEG_INFINITY, f64::INFINITY, true);
             best_result = result;
 
-            // println!("Depth 1: Best moves {:?}, Score: {}, Nodes: {}", best_result.moves, best_result.value, self.nodes);
+            println!("info string depth 1 moves {:?} score {} nodes {}", best_result.moves, best_result.value, self.nodes);
         }
 
         for depth in 2..=max_depth {
@@ -135,6 +145,12 @@ impl Chess {
 
             loop {
                 let result = self.search(board, depth, alpha, beta, true);
+
+                println!("info string aspwin depth {depth} alpha {alpha} beta {beta} score {} nodes {}", result.value, self.nodes);
+
+                if self.is_stopping {
+                    break;
+                }
 
                 if result.value > alpha && result.value < beta {
                     best_result = result;
@@ -167,13 +183,23 @@ impl Chess {
                 break;
             }
 
-            // println!("Depth {depth}: Best moves {:?}, Score: {}, Nodes: {}", best_result.moves, best_result.value, self.nodes);
+            println!("info string depth {depth} moves {:?} score {} nodes {}", best_result.moves, best_result.value, self.nodes);
+        }
+
+        if self.is_stopping {
+            self.reset_stop();
         }
 
         best_result
     }
 
     pub fn search(&mut self, board: &mut Board, depth: u8, _alpha: f64, _beta: f64, maximizer: bool) -> SearchResult {
+        if self.is_stopping {
+            return SearchResult {
+                value: 0.0,
+                moves: vec![]
+            }
+        }
         self.nodes += 1;
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);

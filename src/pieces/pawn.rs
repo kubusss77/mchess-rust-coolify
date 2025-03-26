@@ -1,15 +1,29 @@
 use crate::board::{Board, Control, ControlType};
-use crate::moves::{Move, MoveType, Position};
+use crate::moves::{Move, MoveType, Position, Vector};
 use crate::piece::{PartialPiece, Piece, PieceColor, PieceType};
-use crate::pieces::bitboard::{A_FILE_INV, H_FILE_INV, RANK_3, RANK_6};
+use crate::pieces::bitboard::{A_FILE_INV, H_FILE_INV, RANK_2, RANK_7};
 
-fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board, moves: &mut Vec<Move>) {
+fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board, moves: &mut Vec<Move>, pin_dir: Option<Vector>) {
     if pos == 0 { return };
 
     let position = Position::from_bitboard(pos);
     let is_promotion = (piece.color == PieceColor::White && position.y == 0)
                     || (piece.color == PieceColor::Black && position.y == 7);
     let is_capture = &move_type == &MoveType::Capture;
+
+    if let Some(pin) = pin_dir {
+        if pin.x == 0 && piece.pos.x != position.x {
+            return;
+        }
+        if pin.x != 0 && pin.y != 0 {
+            let x_diff = position.x as isize - piece.pos.x as isize;
+            let y_diff = position.y as isize - piece.pos.y as isize;
+
+            if x_diff != pin.x || y_diff != pin.y {
+                return;
+            }
+        }
+    }
 
     if is_promotion {
         for &promotion_type in &[PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight] {
@@ -46,7 +60,16 @@ pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
     let pos = piece.pos.to_bitboard();
     let mut moves = Vec::with_capacity(12);
 
-    if board.is_pinned(piece.pos.y, piece.pos.x) { return moves };
+    let pin_dir = board.is_pinned(piece.pos.y, piece.pos.x);
+    let check_info = board.check.get(&piece.color);
+
+    if check_info.is_some_and(|c| c.double_checked) { return moves };
+
+    if let Some(pin) = pin_dir {
+        if pin.x != 0 && pin.y == 0 {
+            return moves;
+        }
+    }
 
     let single_push = if piece.color == PieceColor::White {
         (pos >> 8) & board.empty_squares
@@ -55,9 +78,17 @@ pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
     };
 
     let double_push = if piece.color == PieceColor::White {
-        ((single_push & RANK_3) >> 8) & board.empty_squares
+        if (pos & RANK_2) != 0 {
+            ((pos >> 8) >> 8) & board.empty_squares & (single_push >> 8)
+        } else {
+            0
+        }
     } else {
-        ((single_push & RANK_6) << 8) & board.empty_squares
+        if (pos & RANK_7) != 0 {
+            ((pos << 8) << 8) & board.empty_squares & (single_push << 8)
+        } else {
+            0
+        }
     };
 
     let left_capture = if piece.color == PieceColor::White {
@@ -72,10 +103,10 @@ pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
         ((pos & H_FILE_INV) << 9) & board.white_pieces
     };
 
-    bitboard_to_move(piece, single_push, MoveType::Normal, board, &mut moves);
-    bitboard_to_move(piece, double_push, MoveType::Normal, board, &mut moves);
-    bitboard_to_move(piece, left_capture, MoveType::Capture, board, &mut moves);
-    bitboard_to_move(piece, right_capture, MoveType::Capture, board, &mut moves);
+    bitboard_to_move(piece, single_push, MoveType::Normal, board, &mut moves, pin_dir);
+    bitboard_to_move(piece, double_push, MoveType::Normal, board, &mut moves, pin_dir);
+    bitboard_to_move(piece, left_capture, MoveType::Capture, board, &mut moves, pin_dir);
+    bitboard_to_move(piece, right_capture, MoveType::Capture, board, &mut moves, pin_dir);
 
     if let Some(target_square) = board.target_square {
         let en_passant_pos = target_square.to_bitboard();
@@ -86,7 +117,7 @@ pub fn get_legal_moves_pawn_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
             (((pos & A_FILE_INV) << 7) | ((pos & H_FILE_INV) << 9)) & en_passant_pos
         };
 
-        bitboard_to_move(piece, en_passant_capture, MoveType::Capture, board, &mut moves);
+        bitboard_to_move(piece, en_passant_capture, MoveType::Capture, board, &mut moves, pin_dir);
     }
 
     moves
@@ -100,7 +131,8 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
 
     let check_info = board.check.get(&piece.color);
 
-    if board.is_pinned(rank, file) { return Vec::with_capacity(0) };
+    // it doesnt matter, pawns are not using get_legal_moves_pawn anymore and this function will be deleted in the next refactor
+    if board.is_pinned(rank, file).is_some() { return Vec::with_capacity(0) };
     if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
 
     let promotion_rank = if piece.color == PieceColor::White { 7 } else { 0 };

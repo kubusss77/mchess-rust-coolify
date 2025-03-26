@@ -43,7 +43,7 @@ impl UciProtocol {
                     self.engine = Chess::new();
                 }
                 "stop" => {
-                    // todo
+                    self.engine.stop();
                 },
                 _ => {}
             }

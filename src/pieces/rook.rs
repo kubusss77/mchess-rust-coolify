@@ -10,12 +10,16 @@ pub fn get_legal_moves_rook(piece: &Piece, board: &Board) -> Vec<Move> {
     
     let check_info = board.check.get(&piece.color.clone());
 
-    if board.is_pinned(rank, file) { return Vec::with_capacity(0) };
+    let pin_dir = board.is_pinned(rank, file);
     if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
 
     let mut moves: Vec<Move> = Vec::with_capacity(14);
 
     for &dir in &ROOK_DIRECTIONS {
+        if let Some(pin) = pin_dir {
+            if pin.x != 0 && dir.y != 0 { continue; }
+            if pin.y != 0 && dir.x != 0 { continue; }
+        }
         for i in 1..9 {
             let t_file = Position::clamp(file as isize + dir.x * i);
             let t_rank = Position::clamp(rank as isize + dir.y * i);
@@ -116,7 +120,8 @@ pub fn get_pins_rook(piece: &Piece, board: &Board) -> Vec<Pin> {
                     pins.push(Pin { 
                         position: enemy_piece.clone().unwrap().pos,
                         to: Position { x: t_file, y: t_rank },
-                        color: piece.color
+                        color: piece.color,
+                        dir
                     })
                 } else {
                     enemy_piece = other.clone();
