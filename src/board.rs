@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::HashSet;
 use std::{collections::HashMap, i64};
 
 use crate::r#const::{MAX_PHASE, MOBILITY_VALUE, MOVE_PREALLOC};
@@ -58,14 +59,15 @@ impl Castling {
 
 #[derive(Debug, Clone)]
 pub struct CheckInfo {
-    pub checked: bool,
-    pub double_checked: bool,
+    pub checked: u64,
+    pub double_checked: u64,
     pub block_positions: Option<Vec<Position>>,
+    pub block_mask: u64
 }
 
 impl CheckInfo {
     pub fn default() -> CheckInfo {
-        CheckInfo { checked: false, double_checked: false, block_positions: None }
+        CheckInfo { checked: 0u64, double_checked: 0u64, block_positions: None, block_mask: !0u64 }
     }
 }
 
@@ -304,27 +306,30 @@ impl Board {
         board.moves = moves.parse().unwrap();
 
         board.check.insert(PieceColor::White, CheckInfo {
-            checked: false,
-            double_checked: false,
-            block_positions: None
+            checked: 0u64,
+            double_checked: 0u64,
+            block_positions: None,
+            block_mask: !0u64
         });
 
         board.check.insert(PieceColor::Black, CheckInfo {
-            checked: false,
-            double_checked: false,
-            block_positions: None
+            checked: 0u64,
+            double_checked: 0u64,
+            block_positions: None,
+            block_mask: !0u64
         });
         
         if target_square != "-" {
             board.target_square = Some(Position {
                 x: "abcdefgh".find(target_square.chars().next().unwrap()).unwrap(),
-                y: target_square[1..].parse().unwrap()
+                y: 8 - target_square[1..].parse::<usize>().unwrap()
             })
         }
 
         board.gen_hash();
 
         board.check_control_all();
+        board.update_pins();
 
         board
     }
@@ -375,18 +380,18 @@ impl Board {
     pub fn bb_and_rev_pos(&mut self, piece: BasePiece, pos: Position) {
         let square = pos.to_bitboard();
         match piece {
-            (PieceType::Pawn, PieceColor::White) => self.white_pawns &= square,
-            (PieceType::Knight, PieceColor::White) => self.white_knights &= square,
-            (PieceType::Bishop, PieceColor::White) => self.white_bishops &= square,
-            (PieceType::Rook, PieceColor::White) => self.white_rooks &= square,
-            (PieceType::Queen, PieceColor::White) => self.white_queens &= square,
-            (PieceType::King, PieceColor::White) => self.white_king &= square,
-            (PieceType::Pawn, PieceColor::Black) => self.black_pawns &= square,
-            (PieceType::Knight, PieceColor::Black) => self.black_knights &= square,
-            (PieceType::Bishop, PieceColor::Black) => self.black_bishops &= square,
-            (PieceType::Rook, PieceColor::Black) => self.black_rooks &= square,
-            (PieceType::Queen, PieceColor::Black) => self.black_queens &= square,
-            (PieceType::King, PieceColor::Black) => self.black_king &= square,
+            (PieceType::Pawn, PieceColor::White) => self.white_pawns &= !square,
+            (PieceType::Knight, PieceColor::White) => self.white_knights &= !square,
+            (PieceType::Bishop, PieceColor::White) => self.white_bishops &= !square,
+            (PieceType::Rook, PieceColor::White) => self.white_rooks &= !square,
+            (PieceType::Queen, PieceColor::White) => self.white_queens &= !square,
+            (PieceType::King, PieceColor::White) => self.white_king &= !square,
+            (PieceType::Pawn, PieceColor::Black) => self.black_pawns &= !square,
+            (PieceType::Knight, PieceColor::Black) => self.black_knights &= !square,
+            (PieceType::Bishop, PieceColor::Black) => self.black_bishops &= !square,
+            (PieceType::Rook, PieceColor::Black) => self.black_rooks &= !square,
+            (PieceType::Queen, PieceColor::Black) => self.black_queens &= !square,
+            (PieceType::King, PieceColor::Black) => self.black_king &= !square,
         }
     }
     
@@ -416,15 +421,17 @@ impl Board {
         self.check.clear();
 
         self.check.insert(PieceColor::White, CheckInfo {
-            checked: false,
-            double_checked: false,
-            block_positions: None
+            checked: 0u64,
+            double_checked: 0u64,
+            block_positions: None,
+            block_mask: !0u64
         });
 
         self.check.insert(PieceColor::Black, CheckInfo {
-            checked: false,
-            double_checked: false,
-            block_positions: None
+            checked: 0u64,
+            double_checked: 0u64,
+            block_positions: None,
+            block_mask: !0u64
         });
         
         self.kings.insert(PieceColor::White, self.get_king(PieceColor::White));
@@ -457,8 +464,8 @@ impl Board {
         
         let mut moves = match piece.piece_type {
             PieceType::Pawn => get_legal_moves_pawn(&piece, self),
-            PieceType::Bishop => get_legal_moves_bishop_bitboard(&piece, self),
             PieceType::Knight => get_legal_moves_knight_bitboard(&piece, self),
+            PieceType::Bishop => get_legal_moves_bishop_bitboard(&piece, self),
             PieceType::Rook => get_legal_moves_rook_bitboard(&piece, self),
             PieceType::Queen => get_legal_moves_queen_bitboard(&piece, self),
             PieceType::King => get_legal_moves_king_bitboard(&piece, self)
@@ -600,6 +607,7 @@ impl Board {
         }
 
         self.update_board(m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion));
+        self.update_pins();
 
         let mut affected = Vec::with_capacity(to_indices.len() + from_indices.len());
         affected.extend(to_indices);
@@ -661,14 +669,14 @@ impl Board {
         self.halfmove_clock = history.halfmove_clock;
         self.turn = history.turn;
         self.castling = history.castling.clone();
-        
-        self.clear();
 
         self.check_control_all();
 
         self.check.clear();
         self.check.insert(PieceColor::White, history.white_check.clone());
         self.check.insert(PieceColor::Black, history.black_check.clone());
+
+        self.update_pins();
     }
 
     pub fn move_clone(&mut self, m: &Move) -> Board {
@@ -737,8 +745,8 @@ impl Board {
             if king_pos == control.pos {
                 let color = piece.color.opposite();
                 let check_info = self.check.get_mut(&color).unwrap();
-                if check_info.checked {
-                    check_info.double_checked = true;
+                if check_info.checked != 0 && check_info.checked != control.pos.to_bitboard() {
+                    check_info.double_checked |= control.pos.to_bitboard();
                 } else {
                     if piece._directional {
                         let filtered = controlled_squares.iter().filter(|c| c.direction.unwrap() == control.direction.unwrap() && c.direction.unwrap().in_direction(piece.pos, c.pos) && c.direction.unwrap().in_direction(king_pos, c.pos));
@@ -746,7 +754,11 @@ impl Board {
                     } else {
                         check_info.block_positions = Some(vec![piece.pos]);
                     }
-                    check_info.checked = true;
+                    check_info.block_mask = 0u64;
+                    for c in check_info.block_positions.as_ref().unwrap() {
+                        check_info.block_mask |= c.to_bitboard();
+                    }
+                    check_info.checked = control.pos.to_bitboard();
                 }
             }
 
@@ -801,7 +813,7 @@ impl Board {
     pub fn get_result(&mut self) -> ResultType {
         let check = self.check.get(&self.turn).expect("Expected check information for both colors").clone();
         let king_index = self.get_king(self.turn).expect("Expected both kings").index;
-        if (check.double_checked || (check.checked && self.get_block_moves(self.turn).is_empty())) && self.get_legal_moves(king_index).is_empty() {
+        if (check.double_checked != 0u64 || (check.checked != 0u64 && self.get_block_moves(self.turn).is_empty())) && self.get_legal_moves(king_index).is_empty() {
             match self.turn {
                 PieceColor::White => ResultType::BlackCheckmate,
                 PieceColor::Black => ResultType::WhiteCheckmate
@@ -820,7 +832,7 @@ impl Board {
             moves.reserve(MOVE_PREALLOC);
         }
 
-        let piece_indices: Vec<usize> = self.pieces.iter()
+        let piece_indices: HashSet<usize> = self.pieces.iter()
             .filter_map(|(&index, piece)| {
                 if piece.color == color {
                     Some(index)
@@ -828,7 +840,7 @@ impl Board {
                     None
                 }
             })
-            .collect();
+            .collect::<HashSet<usize>>();
 
         for &index in &piece_indices {
             let piece_moves = self.get_legal_moves(index);
@@ -850,11 +862,11 @@ impl Board {
         let mut result = Vec::with_capacity(MOVE_PREALLOC);
 
         if let Some(info) = self.check.get(&color) {
-            if info.double_checked {
+            if info.double_checked != 0u64 {
                 if let Some(king) = self.get_king(color) {
                     result = self.get_legal_moves(king.index);
                 }
-            } else if info.checked {
+            } else if info.checked != 0u64 {
                 if let Some(king) = self.get_king(color) {
                     result = self.get_legal_moves(king.index);
 
@@ -955,6 +967,19 @@ impl Board {
             }
         }
         return dir;
+    }
+
+    pub fn update_pins(&mut self) {
+        self.pin_table = vec![vec![vec![]; 8]; 8];
+
+        for (&index, piece) in &self.pieces {
+            if matches!(piece.piece_type, PieceType::Bishop | PieceType::Rook | PieceType::Queen) {
+                let pins = self.get_pins(index);
+                for pin in pins {
+                    self.pin_table[pin.position.y][pin.position.x].push(pin);
+                }
+            }
+        }
     }
 
     pub fn calculate_phase(&self) -> f64 {

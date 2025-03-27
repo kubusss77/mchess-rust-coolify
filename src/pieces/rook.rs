@@ -23,7 +23,12 @@ pub fn generate_rook_rays(pos: u64, occupied: u64, enemy_king: u64, let_through:
             obscured |= ray;
         }
 
-        if ray & occupied != 0 && (ray & enemy_king == 0 || !let_through) { break; }
+        if ray & occupied != 0 {
+            if ray & enemy_king == 0 {
+                if !let_through { break; }
+            }
+            found_king = true;
+        }
     }
 
     ray = pos;
@@ -38,7 +43,12 @@ pub fn generate_rook_rays(pos: u64, occupied: u64, enemy_king: u64, let_through:
             obscured |= ray;
         }
 
-        if ray & occupied != 0 && (ray & enemy_king == 0 || !let_through) { break; }
+        if ray & occupied != 0 {
+            if ray & enemy_king == 0 {
+                if !let_through { break; }
+            }
+            found_king = true;
+        }
     }
     
     ray = pos;
@@ -53,7 +63,12 @@ pub fn generate_rook_rays(pos: u64, occupied: u64, enemy_king: u64, let_through:
             obscured |= ray;
         }
 
-        if ray & occupied != 0 && (ray & enemy_king == 0 || !let_through) { break; }
+        if ray & occupied != 0 {
+            if ray & enemy_king == 0 {
+                if !let_through { break; }
+            }
+            found_king = true;
+        }
     }
     
     ray = pos;
@@ -68,7 +83,12 @@ pub fn generate_rook_rays(pos: u64, occupied: u64, enemy_king: u64, let_through:
             obscured |= ray;
         }
 
-        if ray & occupied != 0 && (ray & enemy_king == 0 || !let_through) { break; }
+        if ray & occupied != 0 {
+            if ray & enemy_king == 0 {
+                if !let_through { break; }
+            }
+            found_king = true;
+        }
     }
 
     (attacks, obscured)
@@ -80,7 +100,14 @@ pub fn get_legal_moves_rook_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
 
     let pin_dir = board.is_pinned(piece.pos.y, piece.pos.x);
     let check_info = board.check.get(&piece.color);
-    if check_info.is_some_and(|c| c.double_checked) { return moves; }
+    
+    let mut valid_squares = !0u64;
+    if let Some(check_info) = check_info {
+        if check_info.double_checked != 0u64 {
+            return moves;
+        }
+        if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
+    }
 
     let (attacks, _) = generate_rook_rays(pos, board.all_pieces, 0u64, false);
 
@@ -90,7 +117,7 @@ pub fn get_legal_moves_rook_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
         board.white_pieces
     };
 
-    let valid_moves = attacks & (board.empty_squares | enemy);
+    let valid_moves = attacks & (board.empty_squares | enemy) & valid_squares;
 
     let valid_moves = if let Some(pin) = pin_dir {
         if pin.x == 0 || pin.y == 0 {
@@ -150,7 +177,7 @@ pub fn get_legal_moves_rook(piece: &Piece, board: &Board) -> Vec<Move> {
     let check_info = board.check.get(&piece.color.clone());
 
     let pin_dir = board.is_pinned(rank, file);
-    if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
+    if check_info.is_some_and(|c| c.double_checked != 0u64) { return Vec::with_capacity(0) };
 
     let mut moves: Vec<Move> = Vec::with_capacity(14);
 
@@ -294,6 +321,8 @@ pub fn get_pins_rook(piece: &Piece, board: &Board) -> Vec<Pin> {
 
     for dir in ROOK_DIRECTIONS {
         let mut enemy_piece: Option<Piece> = None;
+        let mut potential_pin = false;
+
         for i in 1..9 {
             let t_file = Position::clamp(file as isize + dir.x * i);
             let t_rank = Position::clamp(rank as isize + dir.y * i);
@@ -301,17 +330,26 @@ pub fn get_pins_rook(piece: &Piece, board: &Board) -> Vec<Pin> {
             if !Board::in_bounds(t_rank, t_file) { break };
 
             let other = board.get_piece_at(t_rank, t_file);
-            if other.as_ref().is_some_and(|p| p.piece_type == PieceType::King) {
-                if other.as_ref().unwrap().color == piece.color { break };
-                if enemy_piece.is_some() {
-                    pins.push(Pin { 
-                        position: enemy_piece.clone().unwrap().pos,
-                        to: Position { x: t_file, y: t_rank },
-                        color: piece.color,
-                        dir
-                    })
+            if let Some(enemy) = other {
+                if enemy.color == piece.color { break };
+
+                if enemy.piece_type == PieceType::King {
+                    if potential_pin {
+                        pins.push(Pin { 
+                            position: enemy_piece.as_ref().unwrap().pos,
+                            to: Position { x: t_file, y: t_rank },
+                            color: piece.color,
+                            dir
+                        })
+                    }
+                    break;
                 } else {
-                    enemy_piece = other.clone();
+                    if potential_pin {
+                        break;
+                    }
+
+                    enemy_piece = Some(enemy.clone());
+                    potential_pin = true;
                 }
             }
         }

@@ -43,11 +43,25 @@ fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board,
             moves.push(m);
         }
     } else {
+        let is_en_passant = is_capture && board.is_empty(position.y, position.x);
+
+        let captured = if is_en_passant {
+            if piece.color == PieceColor::White {
+                board.get_piece_at(position.y - 1, position.x)
+            } else {
+                board.get_piece_at(position.y + 1, position.x)
+            }
+        } else if is_capture {
+            board.get_piece_at(position.y, position.x)
+        } else {
+            None
+        };
+
         let m = Move {
             from: piece.pos,
             to: position,
             move_type: vec![move_type; 1],
-            captured: if is_capture { board.get_piece_at(position.y, position.x) } else { None },
+            captured,
             promote_to: None,
             piece_index: piece.index,
             piece_color: piece.color,
@@ -64,8 +78,14 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
 
     let pin_dir = board.is_pinned(piece.pos.y, piece.pos.x);
     let check_info = board.check.get(&piece.color);
-
-    if check_info.is_some_and(|c| c.double_checked) { return moves };
+    
+    let mut valid_squares = !0u64;
+    if let Some(check_info) = check_info {
+        if check_info.double_checked != 0u64 {
+            return moves;
+        }
+        if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
+    }
 
     if let Some(pin) = pin_dir {
         if pin.x != 0 && pin.y == 0 {
@@ -105,19 +125,19 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
         ((pos & H_FILE_INV) << 9) & board.white_pieces
     };
 
-    bitboard_to_move(piece, single_push, MoveType::Normal, board, &mut moves, pin_dir);
-    bitboard_to_move(piece, double_push, MoveType::Normal, board, &mut moves, pin_dir);
-    bitboard_to_move(piece, left_capture, MoveType::Capture, board, &mut moves, pin_dir);
-    bitboard_to_move(piece, right_capture, MoveType::Capture, board, &mut moves, pin_dir);
+    bitboard_to_move(piece, single_push & valid_squares, MoveType::Normal, board, &mut moves, pin_dir);
+    bitboard_to_move(piece, double_push & valid_squares, MoveType::Normal, board, &mut moves, pin_dir);
+    bitboard_to_move(piece, left_capture & valid_squares, MoveType::Capture, board, &mut moves, pin_dir);
+    bitboard_to_move(piece, right_capture & valid_squares, MoveType::Capture, board, &mut moves, pin_dir);
 
     if let Some(target_square) = board.target_square {
         let en_passant_pos = target_square.to_bitboard();
-
+        
         let en_passant_capture = if piece.color == PieceColor::White {
             (((pos & A_FILE_INV) >> 9) | ((pos & H_FILE_INV) >> 7)) & en_passant_pos
         } else {
             (((pos & A_FILE_INV) << 7) | ((pos & H_FILE_INV) << 9)) & en_passant_pos
-        };
+        } & valid_squares;
 
         bitboard_to_move(piece, en_passant_capture, MoveType::Capture, board, &mut moves, pin_dir);
     }

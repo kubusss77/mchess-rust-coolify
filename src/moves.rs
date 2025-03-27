@@ -6,7 +6,7 @@ use crate::piece::{PieceType, PieceColor, Piece};
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash)]
 pub struct Position {
     pub x: usize,
     pub y: usize
@@ -38,6 +38,14 @@ impl Position {
     pub fn from_bitboard(square: u64) -> Self {
         let index = square.trailing_zeros() as usize;
         Position { x: index % 8, y: index / 8 }
+    }
+}
+
+impl fmt::Debug for Position {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let file_char = "abcdefgh".chars().nth(self.x).unwrap();
+
+        write!(f, "{}{}", file_char, 8 - self.y)
     }
 }
 
@@ -73,7 +81,7 @@ impl Vector {
     }
  
     pub fn is_parallel_to(&self, other: Vector) -> bool {
-        (self.x == other.x && self.y == other.y) || (self.x == -other.x && self.y == -other.y)
+        self.x * other.y == self.y * other.x
     }
 }
 

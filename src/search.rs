@@ -209,7 +209,7 @@ impl Chess {
             }
         }
 
-        if depth <= 2 && !board.check.get(&board.turn).unwrap().checked {
+        if depth <= 2 && board.check.get(&board.turn).unwrap().checked == 0u64 {
             let eval = self.evaluate(board).to_value();
 
             let margin = DEFAULT_MARGIN * depth as f64;
@@ -368,7 +368,7 @@ impl Chess {
     }
 
     pub fn prune_null_moves(&mut self, board: &mut Board, depth: u8, alpha: f64, beta: f64, maximizer: bool) -> Option<SearchResult> {
-        if depth < 3 || !board.check.get(&board.turn).unwrap().checked || board.get_result().is_end() {
+        if depth < 3 || board.check.get(&board.turn).unwrap().checked == 0u64 || board.get_result().is_end() {
             return None
         }
 

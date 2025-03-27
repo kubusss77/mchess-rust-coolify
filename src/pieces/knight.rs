@@ -15,13 +15,20 @@ const KNIGHT_DIRECTIONS: [Vector; 8] = [
 ];
 
 pub fn get_legal_moves_knight_bitboard(piece: &Piece, board: &Board) -> Vec<Move> {
-    if board.is_pinned(piece.pos.y, piece.pos.x).is_some() { return Vec::with_capacity(0) };
-
-    let check_info = board.check.get(&piece.color);
-    if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
-
     let pos = piece.pos.to_bitboard();
     let mut moves = Vec::with_capacity(8);
+
+    if board.is_pinned(piece.pos.y, piece.pos.x).is_some() { return moves };
+
+    let check_info = board.check.get(&piece.color);
+    
+    let mut valid_squares = !0u64;
+    if let Some(check_info) = check_info {
+        if check_info.double_checked != 0u64 {
+            return moves;
+        }
+        if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
+    }
 
     let knight_moves = ((pos << 17) & A_FILE_INV) |
                        ((pos << 15) & H_FILE_INV) |
@@ -32,7 +39,7 @@ pub fn get_legal_moves_knight_bitboard(piece: &Piece, board: &Board) -> Vec<Move
                        ((pos << 6) & GH_FILE_INV) |
                        ((pos >> 10) & GH_FILE_INV);
 
-    let valid_moves = knight_moves & (board.empty_squares | if piece.color == PieceColor::White { board.black_pieces } else { board.white_pieces });
+    let valid_moves = knight_moves & (board.empty_squares | if piece.color == PieceColor::White { board.black_pieces } else { board.white_pieces }) & valid_squares;
 
     let mut rem = valid_moves;
     while rem != 0 {
@@ -40,7 +47,7 @@ pub fn get_legal_moves_knight_bitboard(piece: &Piece, board: &Board) -> Vec<Move
         let to_pos = Position::from_bitboard(1u64 << index);
 
         if let Some(check) = check_info {
-            if check.checked && check.block_positions.is_some() {
+            if check.checked != 0u64 && check.block_positions.is_some() {
                 let block_pos = check.block_positions.as_ref().unwrap();
                 if !block_pos.contains(&to_pos) {
                     rem &= rem - 1;
@@ -82,7 +89,7 @@ pub fn get_legal_moves_knight(piece: &Piece, board: &Board) -> Vec<Move> {
     let check_info = board.check.get(&piece.color);
 
     if board.is_pinned(rank, file).is_some() { return Vec::with_capacity(0) };
-    if check_info.is_some_and(|c| c.double_checked) { return Vec::with_capacity(0) };
+    if check_info.is_some_and(|c| c.double_checked != 0u64) { return Vec::with_capacity(0) };
 
     let mut moves: Vec<Move> = Vec::with_capacity(8);
 
