@@ -5,8 +5,8 @@ use crate::moves::{Move, MoveType};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EvaluationResult {
-    white: f64,
-    black: f64
+    pub white: f64,
+    pub black: f64
 }
 
 impl EvaluationResult {

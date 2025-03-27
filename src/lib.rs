@@ -6,3 +6,4 @@ pub mod evaluation;
 pub mod r#const;
 pub mod search;
 pub mod protocol;
+pub mod mcts;

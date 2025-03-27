@@ -20,6 +20,8 @@ pub const DEFAULT_MARGIN: f64 = 200.0;
 
 pub const MAX_PHASE: i32 = 24;
 
+pub const MCTS_MAX_PLIES: usize = 100;
+
 pub const PAWN_TABLE: [[f64; 8]; 8] = [
     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
