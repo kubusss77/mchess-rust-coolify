@@ -6,7 +6,7 @@ use crate::piece::PieceType;
 use core::f64;
 use std::collections::HashMap;
 
-pub struct Chess {
+pub struct Minimax {
     evaluation_cache: HashMap<i64, EvaluationResult>,
     move_evaluation_cache: HashMap<usize, f64>,
     transposition_table: HashMap<i64, Node>,
@@ -36,9 +36,9 @@ pub struct SearchResult {
     pub moves: Vec<Move>
 }
 
-impl Chess {
+impl Minimax {
     pub fn new() -> Self {
-        Chess {
+        Minimax {
             evaluation_cache: HashMap::new(),
             move_evaluation_cache: HashMap::new(),
             transposition_table: HashMap::new(),

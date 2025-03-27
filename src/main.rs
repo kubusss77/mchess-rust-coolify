@@ -1,10 +1,10 @@
 use core::f64;
 use std::io;
 
-use mchess::{board::Board, evaluation::evaluate, piece::PieceColor, pieces::pawn::get_controlled_squares_pawn, protocol::UciProtocol, search::Chess};
+use mchess::{board::Board, evaluation::evaluate, piece::PieceColor, pieces::pawn::get_controlled_squares_pawn, protocol::UciProtocol, search::Minimax};
 
 fn main() -> io::Result<()> {
-    // let mut engine = Chess::new();
+    // let mut engine = Minimax::new();
 
     // let board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     // println!("{:?}", board);

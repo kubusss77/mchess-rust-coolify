@@ -38,7 +38,8 @@ pub struct Mcts {
     pub exp: f64,
     pub max_iterations: usize,
     pub nodes_visited: usize,
-    node_cache: HashMap<u64, Node>
+    node_cache: HashMap<u64, Node>,
+    is_stopping: bool
 }
 
 impl Mcts {
@@ -48,7 +49,8 @@ impl Mcts {
             exp: 1.414,
             max_iterations: 10000,
             nodes_visited: 0,
-            node_cache: HashMap::new()
+            node_cache: HashMap::new(),
+            is_stopping: false
         }
     }
 
@@ -61,7 +63,7 @@ impl Mcts {
         let mut root = Node::new(None);
         let mut iterations = 0;
 
-        while start_time.elapsed() < time_limit {
+        while start_time.elapsed() < time_limit && !self.is_stopping {
             let mut board_clone = board.clone();
             let path = self.select_and_expand(&mut root, &mut board_clone);
             let result = self.simulate(&mut board_clone);
@@ -84,7 +86,7 @@ impl Mcts {
         let mut path = Vec::new();
         let mut current_node = node;
 
-        while !current_node.children.is_empty() && current_node.expanded {
+        while !current_node.children.is_empty() && current_node.expanded && !self.is_stopping {
             let parent_visits = current_node.visits;
             let best_child_index = current_node.children.iter()
                 .enumerate()
@@ -141,7 +143,7 @@ impl Mcts {
         let mut rng = rand::rng();
         let mut plies = 0;
 
-        while !board.get_result().is_end() && plies < MCTS_MAX_PLIES {
+        while !board.get_result().is_end() && plies < MCTS_MAX_PLIES && !self.is_stopping {
             let legal_moves = board.get_total_legal_moves(None);
             if legal_moves.is_empty() {
                 break;
@@ -203,7 +205,7 @@ impl Mcts {
         }
     }
 
-    pub fn iterative_deepening(&mut self, board: &mut Board, max_time_ms: u64, time_chunks: u32) -> Move {
+    pub fn iterative_deepening(&mut self, board: &mut Board, time_chunks: u32, max_time_ms: u64) -> Option<Move> {
         let base_time = max_time_ms / time_chunks as u64;
 
         let mut best_move = None;
@@ -211,6 +213,10 @@ impl Mcts {
 
         for i in 1..=time_chunks {
             total_time_used += base_time;
+
+            if self.is_stopping {
+                break;
+            }
 
             self.nodes_visited = 0;
             let m = self.search(board, base_time);
@@ -225,7 +231,19 @@ impl Mcts {
             }
         }
 
-        best_move.expect("No move found")
+        if self.is_stopping {
+            self.reset_stop();
+        }
+
+        best_move
+    }
+
+    pub fn stop(&mut self) {
+        self.is_stopping = true;
+    }
+
+    pub fn reset_stop(&mut self) {
+        self.is_stopping = false;
     }
 }
 

@@ -1,24 +1,24 @@
 use std::io::{self, Write};
 
-use crate::{board::Board, moves::{Move, MoveType}, piece::{PieceColor, PieceType}, search::Chess};
+use crate::{board::Board, engine::{Engine, EngineType}, moves::{Move, MoveType}, piece::{PieceColor, PieceType}, search::Minimax};
 
 pub struct UciProtocol {
-    engine: Chess,
-    board: Board
+    engine: Engine,
+    board: Board,
+    engine_type: EngineType
 }
 
 impl UciProtocol {
     pub fn new() -> Self {
         UciProtocol { 
-            engine: Chess::new(), 
-            board: Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") 
+            engine: Engine::new(EngineType::Minimax), 
+            board: Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
+            engine_type: EngineType::Minimax // default
         }
     }
 
     pub fn run(&mut self) -> io::Result<()> {
-        println!("id name mchess");
-        println!("id author ggod");
-        println!("uciok");
+        self.identify();
 
         let stdin = io::stdin();
         let mut input = String::new();
@@ -30,18 +30,15 @@ impl UciProtocol {
 
             match command {
                 "quit" => break,
-                "uci" => {
-                    println!("id name mchess");
-                    println!("id name ggod");
-                    println!("uciok");
-                },
+                "uci" => self.identify(),
                 "isready" => println!("readyok"),
                 cmd if cmd.starts_with("position") => self.handle_position(cmd),
                 cmd if cmd.starts_with("go") => self.handle_go(cmd),
+                cmd if cmd.starts_with("setoption") => self.set_option(cmd),
                 "ucinewgame" => {
                     self.board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                    self.engine = Chess::new();
-                }
+                    self.engine = Engine::new(self.engine_type);
+                },
                 "stop" => {
                     self.engine.stop();
                 },
@@ -54,6 +51,56 @@ impl UciProtocol {
         Ok(())
     }
 
+    pub fn identify(&mut self) {
+        println!("id name mchess");
+        println!("id author ggod");
+        println!("option name EngineType type combo default Minimax var Minimax var MCTS");
+        println!("uciok");
+    }
+
+    fn set_option(&mut self, command: &str) {
+        let parts: Vec<&str> = command.split_whitespace().collect();
+        let name_index = parts.iter().position(|&p| p.to_lowercase() == "name");
+        let value_index = parts.iter().position(|&p| p.to_lowercase() == "value");
+
+        if name_index.is_none() {
+            return;
+        }
+
+        let name_start = name_index.unwrap() + 1;
+        let name_end = value_index.unwrap_or(parts.len());
+        let name = parts[name_start..name_end].join(" ").to_lowercase();
+
+        let value = if let Some(index) = value_index {
+            if index + 1 < parts.len() {
+                parts[(index + 1)..].join("")
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        match name.as_str() {
+            "enginetype" | "engine type" => {
+                match value.to_lowercase().as_str() {
+                    "minimax" | "alphabeta" | "default" => {
+                        println!("info string Setting engine type to Minimax");
+                        self.engine_type = EngineType::Minimax;
+                        self.engine = Engine::new(self.engine_type);
+                    },
+                    "mcts" => {
+                        println!("info string Setting engine type to MCTS");
+                        self.engine_type = EngineType::MCTS;
+                        self.engine = Engine::new(self.engine_type);
+                    },
+                    a => println!("info string Unknown engine type: {}, current: {:?}", a, self.engine_type)
+                }
+            },
+            a => println!("info string Unknown option: {}", a)
+        }
+    }
+
     fn handle_position(&mut self, command: &str) {
         let parts: Vec<&str> = command.split_whitespace().collect();
         let pos_type = parts.get(1).unwrap_or(&"");
@@ -61,7 +108,7 @@ impl UciProtocol {
         match *pos_type {
             "startpos" => {
                 self.board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                self.engine = Chess::new();
+                self.engine = Engine::new(self.engine_type);
 
                 if let Some(moves_index) = parts.iter().position(|&p| p == "moves") {
                     for i in (moves_index + 1)..parts.len() {
@@ -151,7 +198,7 @@ impl UciProtocol {
 
         let result = self.engine.iterative_deepening(&mut self.board, depth, time_limit);
 
-        if let Some(best_move) = result.moves.first() {
+        if let Some(best_move) = result.as_ref() {
             println!("info string turn {:?} move clr {:?}", self.board.turn, best_move.piece_color);
             println!("bestmove {}", self.move_to_uci(best_move));
         } else {

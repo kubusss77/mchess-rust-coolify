@@ -1,11 +1,11 @@
 use std::time::Instant;
 
 use mchess::board::Board;
-use mchess::search::Chess;
+use mchess::search::Minimax;
 
 #[test] 
 fn search_depth_performance() {
-    let mut chess = Chess::new();
+    let mut chess = Minimax::new();
     let mut board = Board::from_fen("2k2r2/1ppp4/pn5q/8/8/8/3B1PPP/1Q4K1 w - - 0 1");
 
     for depth in 1..=7 {
@@ -22,7 +22,7 @@ fn search_depth_performance() {
 
 #[test]
 fn iterative_deepening_performance() {
-    let mut chess = Chess::new();
+    let mut chess = Minimax::new();
     let mut board = Board::from_fen("2k2r2/1ppp4/pn5q/8/8/8/3B1PPP/1Q4K1 w - - 0 1");
 
     chess.iterative_deepening(&mut board, 10, 20000);
