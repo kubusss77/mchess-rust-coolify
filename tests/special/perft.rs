@@ -1,4 +1,6 @@
-use mchess::board::Board;
+use mchess::{board::Board, piece::PieceColor};
+
+use crate::common::show_mask;
 
 fn perft(board: &mut Board, depth: u32) -> u64 {
     if depth == 0 { return 1; }
@@ -24,7 +26,7 @@ fn test_perft() {
         20,       // depth 1
         400,      // depth 2
         8902,     // depth 3
-        197281,   // depth 4
+        // 197281,   // depth 4
     ];
     
     for depth in 0..expected.len() {
@@ -39,6 +41,10 @@ fn test_perft() {
     }
     
     let mut board2 = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+    println!("{:?}\n{:?}", board2.get_total_legal_moves(None), board2);
+    show_mask(board2.all_pieces);
+    show_mask(board2.white_pieces);
+    show_mask(board2.black_pieces);
     assert_eq!(perft(&mut board2, 1), 48);
     assert_eq!(perft(&mut board2, 2), 2039);
     

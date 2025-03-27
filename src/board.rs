@@ -5,12 +5,12 @@ use std::{collections::HashMap, i64};
 use crate::r#const::{MAX_PHASE, MOBILITY_VALUE, MOVE_PREALLOC};
 use crate::piece::{BasePiece, PartialPiece, Piece, PieceColor, PieceType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
-use crate::pieces::bishop::{get_controlled_squares_bishop, get_controlled_squares_bishop_bitboard, get_legal_moves_bishop, get_legal_moves_bishop_bitboard, get_pins_bishop};
-use crate::pieces::king::{get_controlled_squares_king, get_controlled_squares_king_bitboard, get_legal_moves_king_bitboard};
-use crate::pieces::knight::{get_controlled_squares_knight, get_controlled_squares_knight_bitboard, get_legal_moves_knight_bitboard};
-use crate::pieces::pawn::{get_controlled_squares_pawn, get_controlled_squares_pawn_bitboard, get_legal_moves_pawn};
-use crate::pieces::queen::{get_controlled_squares_queen, get_controlled_squares_queen_bitboard, get_legal_moves_queen, get_legal_moves_queen_bitboard, get_pins_queen};
-use crate::pieces::rook::{get_controlled_squares_rook, get_controlled_squares_rook_bitboard, get_legal_moves_rook, get_legal_moves_rook_bitboard, get_pins_rook};
+use crate::pieces::bishop::{get_controlled_squares_bishop_bitboard, get_legal_moves_bishop_bitboard, get_pins_bishop};
+use crate::pieces::king::{get_controlled_squares_king_bitboard, get_legal_moves_king_bitboard};
+use crate::pieces::knight::{get_controlled_squares_knight_bitboard, get_legal_moves_knight_bitboard};
+use crate::pieces::pawn::{get_controlled_squares_pawn_bitboard, get_legal_moves_pawn};
+use crate::pieces::queen::{get_controlled_squares_queen_bitboard, get_legal_moves_queen_bitboard, get_pins_queen};
+use crate::pieces::rook::{get_controlled_squares_rook_bitboard, get_legal_moves_rook_bitboard, get_pins_rook};
 
 use rand::rngs::StdRng;
 use rand::{SeedableRng, Rng};
@@ -117,6 +117,21 @@ impl ControlTableEntry {
     }
 }
 
+#[derive(Clone)]
+pub struct ControlBitboards {
+    pub piece_control: HashMap<usize, u64>,
+
+    pub white_control: u64,
+    pub black_control: u64,
+
+    pub white_attack: u64,
+    pub black_attack: u64,
+    pub white_defend: u64,
+    pub black_defend: u64,
+
+    pub control_entries: HashMap<u64, Vec<ControlTableEntry>>
+}
+
 pub type ControlTable = Vec<Vec<Vec<ControlTableEntry>>>;
 pub type ControlTableLookup = HashMap<usize, Vec<(Position, ControlType)>>;
 
@@ -131,6 +146,7 @@ pub struct MoveInfo {
     pub castling: Castling,
     pub promoted_type: Option<PieceType>,
     pub affected_pieces: Vec<usize>,
+    pub control_bitboards: ControlBitboards
 }
 
 #[derive(Clone)]
@@ -154,8 +170,8 @@ pub struct Board {
     pub empty_squares: u64,
 
     pub board: Vec<Vec<isize>>,
-    pub control_table: ControlTable,
-    pub control_table_lookup: ControlTableLookup,
+    // pub control_table: ControlTable,
+    // pub control_table_lookup: ControlTableLookup,
     pub pin_table: Vec<Vec<Vec<Pin>>>,
     pub pieces: HashMap<usize, Piece>,
     pub moves: i32,
@@ -171,7 +187,9 @@ pub struct Board {
     pub check: HashMap<PieceColor, CheckInfo>,
     pub hash_table: Vec<i64>,
     pub hash: i64,
-    pub mobility_cache: HashMap<usize, f64>
+    pub mobility_cache: HashMap<usize, f64>,
+
+    pub control_bitboards: ControlBitboards
 }
 
 impl Board {
@@ -218,8 +236,8 @@ impl Board {
                 }
             },
             target_square,
-            control_table: vec![vec![vec![]; 8]; 8],
-            control_table_lookup: HashMap::new(),
+            // control_table: vec![vec![vec![]; 8]; 8],
+            // control_table_lookup: HashMap::new(),
             pin_table: vec![vec![vec![]; 8]; 8],
             kings: HashMap::new(),
             result_cache: ResultType::NotCached,
@@ -229,7 +247,18 @@ impl Board {
             check: HashMap::new(),
             hash_table: Vec::with_capacity(782),
             hash: i64::MAX,
-            mobility_cache: HashMap::new()
+            mobility_cache: HashMap::new(),
+
+            control_bitboards: ControlBitboards { 
+                piece_control: HashMap::new(),
+                white_control: 0u64,
+                black_control: 0u64,
+                white_attack: 0u64,
+                black_attack: 0u64,
+                white_defend: 0u64,
+                black_defend: 0u64,
+                control_entries: HashMap::new()
+            }
         }
     }
 
@@ -283,7 +312,7 @@ impl Board {
 
                     board.board[i][j] = board.pieces.len() as isize;
                     board.pieces.insert(index, piece.clone());
-                    board.control_table_lookup.insert(index, vec![]);
+                    // board.control_table_lookup.insert(index, vec![]);
 
                     if piece.piece_type == PieceType::King {
                         board.kings.insert(piece.color.clone(), Some(piece.clone()));
@@ -506,7 +535,17 @@ impl Board {
         if self.turn == PieceColor::White {
             self.moves += 1;
         }
-        self.control_table.iter_mut().for_each(|rank| rank.iter_mut().for_each(|file| file.clear()));
+
+        self.control_bitboards.white_control = 0;
+        self.control_bitboards.black_control = 0;
+        self.control_bitboards.white_attack = 0;
+        self.control_bitboards.black_attack = 0;
+        self.control_bitboards.white_defend = 0;
+        self.control_bitboards.black_defend = 0;
+
+        self.control_bitboards.piece_control.clear();
+        self.control_bitboards.control_entries.clear();
+
         for piece in self.pieces.values_mut() {
             piece.legal_moves_cache.clear();
         }
@@ -531,7 +570,8 @@ impl Board {
             } else {
                 None
             },
-            affected_pieces: Vec::with_capacity(0)
+            affected_pieces: Vec::with_capacity(0),
+            control_bitboards: self.control_bitboards.clone()
         };
 
         let piece_index = m.piece_index;
@@ -569,19 +609,24 @@ impl Board {
 
         self.check_control(piece_index);
 
-        let from_indices: Vec<usize> = self.control_table[pos.x][pos.y]
-            .iter()
-            .map(|e| e.index)
-            .collect();
+        let from_bb = pos.to_bitboard();
+        let to_bb = m.to.to_bitboard();
+
+        let from_indices: Vec<usize> = if let Some(entries) = self.control_bitboards.control_entries.get(&from_bb) {
+            entries.iter().map(|e| e.index).collect()
+        } else {
+            Vec::new()
+        };
 
         for &index in &from_indices {
             self.check_control(index);
         }
 
-        let to_indices: Vec<usize> = self.control_table[pos.x][pos.y]
-            .iter()
-            .map(|e| e.index)
-            .collect();
+        let to_indices: Vec<usize> = if let Some(entries) = self.control_bitboards.control_entries.get(&to_bb) {
+            entries.iter().map(|e| e.index).collect()
+        } else {
+            Vec::new()
+        };
 
         for &index in &to_indices {
             self.check_control(index);
@@ -670,7 +715,7 @@ impl Board {
         self.turn = history.turn;
         self.castling = history.castling.clone();
 
-        self.check_control_all();
+        self.control_bitboards = history.control_bitboards.clone();
 
         self.check.clear();
         self.check.insert(PieceColor::White, history.white_check.clone());
@@ -712,10 +757,36 @@ impl Board {
     }
 
     pub fn clear_control(&mut self, piece_index: usize) {
-        if let Some(positions) = self.control_table_lookup.remove(&piece_index) {
-            for (pos, _) in positions {
-                let controls = &mut self.control_table[pos.y][pos.x];
-                controls.retain(|entry| entry.index != piece_index);
+        if let Some(positions) = self.control_bitboards.piece_control.remove(&piece_index) {
+            let piece_color = match self.pieces.get(&piece_index) {
+                Some(piece) => piece.color,
+                None => return
+            };
+
+            let mut rem = positions;
+            while rem != 0 {
+                let index = rem.trailing_zeros() as usize;
+                let square = 1u64 << index;
+
+                if let Some(entries) = self.control_bitboards.control_entries.get_mut(&square) {
+                    entries.retain(|entry| entry.index != piece_index);
+
+                    if entries.is_empty() {
+                        self.control_bitboards.control_entries.remove(&square);
+                    }
+                }
+
+                if piece_color == PieceColor::White {
+                    self.control_bitboards.white_control &= !square;
+                    self.control_bitboards.white_attack &= !square;
+                    self.control_bitboards.white_defend &= !square;
+                } else {
+                    self.control_bitboards.black_control &= !square;
+                    self.control_bitboards.black_attack &= !square;
+                    self.control_bitboards.black_defend &= !square;
+                }
+
+                rem &= rem - 1;
             }
         }
     }
@@ -738,10 +809,16 @@ impl Board {
 
         let mut count = 0;
 
+        let mut control_bb = 0u64;
+
         for control in &controlled_squares {
+            let pos = control.pos.to_bitboard();
+            control_bb |= pos;
+
             if control.control_type == ControlType::Control {
                 count += 1;
             }
+
             if king_pos == control.pos {
                 let color = piece.color.opposite();
                 let check_info = self.check.get_mut(&color).unwrap();
@@ -762,20 +839,39 @@ impl Board {
                 }
             }
 
-            self.control_table[control.pos.y][control.pos.x].push(ControlTableEntry {
-                index: piece_index,
-                control_type: control.control_type,
-                color: piece.color,
-                obscured: control.obscured,
-                is_king: piece.piece_type == PieceType::King,
-                origin: piece.to_partial()
-            });
+            if piece.color == PieceColor::White {
+                self.control_bitboards.white_control |= pos;
+                if control.control_type == ControlType::Attack {
+                    self.control_bitboards.white_attack |= pos;
+                } else if control.control_type == ControlType::Defend {
+                    self.control_bitboards.white_defend |= pos;
+                }
+            } else {
+                self.control_bitboards.black_control |= pos;
+                if control.control_type == ControlType::Attack {
+                    self.control_bitboards.black_attack |= pos;
+                } else if control.control_type == ControlType::Defend {
+                    self.control_bitboards.black_defend |= pos;
+                }
+            }
+
+            self.control_bitboards.control_entries
+                .entry(pos)
+                .or_insert(Vec::new())
+                .push(ControlTableEntry {
+                    index: piece_index,
+                    control_type: control.control_type,
+                    color: piece.color,
+                    obscured: control.obscured,
+                    is_king: piece.piece_type == PieceType::King,
+                    origin: piece.to_partial()
+                });
 
             lookup_entries.push((control.pos, control.control_type));
         }
 
         if !lookup_entries.is_empty() {
-            self.control_table_lookup.insert(piece_index, lookup_entries);
+            self.control_bitboards.piece_control.insert(piece_index, control_bb);
         }
 
         self.mobility_cache.insert(piece_index, count as f64 * MOBILITY_VALUE);
@@ -821,10 +917,6 @@ impl Board {
         } else {
             ResultType::None
         }
-    }
-
-    pub fn get_attackers_at(&mut self, rank: usize, file: usize, color: PieceColor) -> Vec<ControlTableEntry> {
-        self.control_table[rank][file].iter().filter(|c| c.control_type == ControlType::Attack && c.color == color).cloned().collect()
     }
 
     fn collect_all_legal_moves(&mut self, color: PieceColor, moves: &mut Vec<Move>) {
@@ -941,10 +1033,16 @@ impl Board {
     }
 
     pub fn get_control_at(&self, rank: usize, file: usize, color: Option<PieceColor>) -> Vec<ControlTableEntry> {
-        if let Some(color) = color {
-            self.control_table[rank][file].iter().filter(|c| c.color == color).cloned().collect()
+        let pos = Position { x: file, y: rank };
+        let square = pos.to_bitboard();
+        if let Some(entries) = self.control_bitboards.control_entries.get(&square) {
+            if let Some(color) = color {
+                entries.iter().filter(|c| c.color == color).cloned().collect()
+            } else {
+                entries.clone()
+            }
         } else {
-            self.control_table[rank][file].clone()
+            Vec::new()
         }
     }
 

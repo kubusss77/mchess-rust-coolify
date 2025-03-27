@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::{Duration, Instant}};
+use std::time::{Duration, Instant};
 use rand::seq::IndexedRandom;
 
 use crate::{board::{Board, ResultType}, r#const::MCTS_MAX_PLIES, evaluation::evaluate, moves::Move, piece::PieceColor};
@@ -38,7 +38,6 @@ pub struct Mcts {
     pub exp: f64,
     pub max_iterations: usize,
     pub nodes_visited: usize,
-    node_cache: HashMap<u64, Node>,
     is_stopping: bool
 }
 
@@ -49,7 +48,6 @@ impl Mcts {
             exp: 1.414,
             max_iterations: 10000,
             nodes_visited: 0,
-            node_cache: HashMap::new(),
             is_stopping: false
         }
     }

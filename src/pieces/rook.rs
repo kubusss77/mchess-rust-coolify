@@ -12,7 +12,6 @@ pub fn generate_rook_rays(pos: u64, occupied: u64, enemy_king: u64, let_through:
     let mut found_king = false;
 
     let mut ray = pos;
-    found_king = false;
     while (ray & RANK_1) == 0 {
         ray <<= 8;
         attacks |= ray;

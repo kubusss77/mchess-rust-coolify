@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use crate::{board::Board, engine::{Engine, EngineType}, moves::{Move, MoveType}, piece::{PieceColor, PieceType}, search::Minimax};
+use crate::{board::Board, engine::{Engine, EngineType}, moves::{Move, MoveType}, piece::{PieceColor, PieceType}};
 
 pub struct UciProtocol {
     engine: Engine,
