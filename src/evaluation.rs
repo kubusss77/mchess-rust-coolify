@@ -136,8 +136,8 @@ pub fn evaluate_piece_safety(board: &mut Board) -> EvaluationResult {
         let pos = piece.pos;
         let piece_value = piece.piece_type.to_value() as f64;
 
-        let attackers = board.get_control_at(pos.y, pos.x, Some(piece.color.opposite()));
-        let defenders = board.get_control_at(pos.y, pos.x, Some(piece.color));
+        let attackers = board.get_control_at(pos.y, pos.x, Some(piece.color.opposite()), true);
+        let defenders = board.get_control_at(pos.y, pos.x, Some(piece.color), true);
 
         if !attackers.is_empty() && defenders.is_empty() {
             match piece.color {

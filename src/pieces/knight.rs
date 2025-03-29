@@ -1,4 +1,4 @@
-use crate::board::{Board, Control, ControlType};
+use crate::board::{Board, Control, ControlThreat, ControlType};
 use crate::moves::{Move, MoveType, Position, Vector};
 use crate::piece::{PartialPiece, Piece, PieceColor};
 use crate::pieces::bitboard::{AB_FILE_INV, A_FILE_INV, GH_FILE_INV, H_FILE_INV};
@@ -42,7 +42,10 @@ pub fn get_legal_moves_knight_bitboard(piece: &Piece, board: &Board) -> Vec<Move
     let valid_moves = knight_moves & (board.empty_squares | if piece.color == PieceColor::White { board.black_pieces } else { board.white_pieces }) & valid_squares;
 
     let mut rem = valid_moves;
+    let mut a = 0;
     while rem != 0 {
+        a += 1;
+        if a > 100 { panic!("While loop has been running for over 100 iterations"); }
         let index = rem.trailing_zeros() as usize;
         let to_pos = Position::from_bitboard(1u64 << index);
 
@@ -152,7 +155,10 @@ pub fn get_controlled_squares_knight_bitboard(piece: &PartialPiece, board: &Boar
     };
 
     let mut rem = knight_moves;
+    let mut a = 0;
     while rem != 0 {
+        a += 1;
+        if a > 100 { panic!("While loop has been running for over 100 iterations"); }
         let index = rem.trailing_zeros() as usize;
         let square = 1u64 << index;
         let to_pos = Position::from_bitboard(square);
@@ -170,7 +176,8 @@ pub fn get_controlled_squares_knight_bitboard(piece: &PartialPiece, board: &Boar
             control_type,
             color: piece.color,
             direction: None,
-            obscured: false
+            obscured: false,
+            threat: ControlThreat::All
         });
 
         rem &= rem - 1;
@@ -204,7 +211,8 @@ pub fn get_controlled_squares_knight(piece: &PartialPiece, board: &Board) -> Vec
             control_type,
             color: piece.color, 
             direction: None,
-            obscured: false
+            obscured: false,
+            threat: ControlThreat::All
         });
     }
 

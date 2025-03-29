@@ -1,4 +1,4 @@
-use crate::board::{Board, Control, ControlType};
+use crate::board::{Board, Control, ControlThreat, ControlType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
 use crate::piece::{PartialPiece, Piece, PieceColor, PieceType};
 
@@ -49,7 +49,10 @@ pub fn get_legal_moves_queen_bitboard(piece: &Piece, board: &Board) -> Vec<Move>
     let valid_moves = attacks & (board.empty_squares | enemy) & valid_squares;
 
     let mut rem = valid_moves;
+    let mut a = 0;
     while rem != 0 {
+        a += 1;
+        if a > 100 { panic!("While loop has been running for over 100 iterations"); }
         let index = rem.trailing_zeros() as usize;
         let square = 1u64 << index;
         let to_pos = Position::from_bitboard(square);
@@ -157,7 +160,10 @@ pub fn get_controlled_squares_queen_bitboard(piece: &PartialPiece, board: &Board
     };
 
     let mut rem = attacks;
+    let mut a = 0;
     while rem != 0 {
+        a += 1;
+        if a > 100 { panic!("While loop has been running for over 100 iterations"); }
         let index = rem.trailing_zeros() as usize;
         let square = 1u64 << index;
         let to_pos = Position::from_bitboard(square);
@@ -177,7 +183,8 @@ pub fn get_controlled_squares_queen_bitboard(piece: &PartialPiece, board: &Board
             control_type,
             color: piece.color,
             direction: Some(Vector::between(piece.pos, to_pos)),
-            obscured: is_obscured
+            obscured: is_obscured,
+            threat: ControlThreat::All
         });
 
         rem &= rem - 1;
@@ -214,7 +221,8 @@ pub fn get_controlled_squares_queen(piece: &PartialPiece, board: &Board) -> Vec<
                 control_type,
                 color: piece.color, 
                 direction: Some(dir),
-                obscured
+                obscured,
+                threat: ControlThreat::All
             });
 
             if let Some(p) = &other {
@@ -238,6 +246,7 @@ pub fn get_pins_queen(piece: &Piece, board: &Board) -> Vec<Pin> {
     for dir in QUEEN_DIRECTIONS {
         let mut enemy_piece: Option<Piece> = None;
         let mut potential_pin = false;
+        let mut is_phantom = false;
 
         for i in 1..9 {
             let t_file = Position::clamp(file as isize + dir.x * i);
@@ -247,7 +256,14 @@ pub fn get_pins_queen(piece: &Piece, board: &Board) -> Vec<Pin> {
 
             let other = board.get_piece_at(t_rank, t_file);
             if let Some(enemy) = other {
-                if enemy.color == piece.color { break };
+                if enemy.color == piece.color {
+                    if board.target_piece == enemy.index as i32 {
+                        is_phantom = true;
+                        continue;
+                    } else {
+                        break;
+                    }
+                };
 
                 if enemy.piece_type == PieceType::King {
                     if potential_pin {
@@ -255,7 +271,8 @@ pub fn get_pins_queen(piece: &Piece, board: &Board) -> Vec<Pin> {
                             position: enemy_piece.as_ref().unwrap().pos,
                             to: Position { x: t_file, y: t_rank },
                             color: piece.color,
-                            dir
+                            dir,
+                            is_phantom
                         })
                     }
                     break;

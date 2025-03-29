@@ -1,4 +1,4 @@
-use mchess::board::Board;
+use mchess::{board::Board, pieces::rook::get_controlled_squares_rook_bitboard};
 
 use crate::common::alg;
 
@@ -36,4 +36,31 @@ fn test_rook_check_block() {
     let rook = board.get_piece_at(pos.y, pos.x).unwrap();
     let moves = board.get_legal_moves(rook.index);
     assert_eq!(moves.len(), 1); 
+}
+
+#[test]
+fn test_rook_move_blocked() {
+    let mut board = Board::from_fen("4k3/8/8/8/8/8/P7/R4K2 w - - 0 1");
+    let pos = alg("a1");
+    let rook = board.get_piece_at(pos.y, pos.x).unwrap();
+    let moves = board.get_legal_moves(rook.index);
+    assert_eq!(moves.len(), 4);
+}
+
+#[test]
+fn test_rook_control() {
+    let board = Board::from_fen("6k1/8/4n3/8/2p1R3/8/8/1K6 w - - 0 1");
+    let pos = alg("e4");
+    let rook = board.get_piece_at(pos.y, pos.x).unwrap();
+    let control = get_controlled_squares_rook_bitboard(&rook.to_partial(), &board);
+    assert_eq!(control.len(), 10);
+}
+
+#[test]
+fn test_rook_wrapping() {
+    let mut board = Board::from_fen("6k1/8/8/8/3p3R/8/8/6K1 w - - 0 1");
+    let pos = alg("h4");
+    let rook = board.get_piece_at(pos.y, pos.x).unwrap();
+    let moves = board.get_legal_moves(rook.index);
+    assert_eq!(moves.len(), 11);
 }

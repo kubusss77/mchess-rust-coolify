@@ -133,6 +133,8 @@ impl UciProtocol {
             },
             _ => {}
         }
+
+        println!("{:?}", self.board);
     }
 
     fn handle_go(&mut self, command: &str) {
@@ -200,6 +202,7 @@ impl UciProtocol {
 
         if let Some(best_move) = result.as_ref() {
             println!("info string turn {:?} move clr {:?}", self.board.turn, best_move.piece_color);
+            println!("{:?}", self.board);
             println!("bestmove {}", self.move_to_uci(best_move));
         } else {
             println!("bestmove 0000");

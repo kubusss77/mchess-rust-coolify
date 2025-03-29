@@ -71,8 +71,8 @@ impl Vector {
     pub fn between(pos1: Position, pos2: Position) -> Vector {
         let vec1 = pos1.to_vector();
         let vec2 = pos2.to_vector();
-        let x_diff = vec1.x - vec2.x;
-        let y_diff = vec1.y - vec2.y;
+        let x_diff = vec2.x - vec1.x;
+        let y_diff = vec2.y - vec1.y;
 
         Vector {
             x: x_diff.signum(),
@@ -115,18 +115,20 @@ pub struct Move {
 
 impl fmt::Debug for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let piece_char = match self.piece_type {
-            PieceType::Pawn => "",
-            PieceType::Knight => "N",
-            PieceType::Bishop => "B",
-            PieceType::Rook => "R",
-            PieceType::Queen => "Q",
-            PieceType::King => "K"
-        };
+        // let piece_char = match self.piece_type {
+        //     PieceType::Pawn => "",
+        //     PieceType::Knight => "N",
+        //     PieceType::Bishop => "B",
+        //     PieceType::Rook => "R",
+        //     PieceType::Queen => "Q",
+        //     PieceType::King => "K"
+        // };
 
-        let file_char = "abcdefgh".chars().nth(self.to.x).unwrap();
+        // let file_char = "abcdefgh".chars().nth(self.to.x).unwrap();
 
-        write!(f, "{}{}{}", piece_char, file_char, 8 - self.to.y)
+        // write!(f, "{}{}{}", piece_char, file_char, 8 - self.to.y);
+
+        write!(f, "{:?}{:?}", self.from, self.to)
     }
 }
 
@@ -188,5 +190,6 @@ pub struct Pin {
     pub position: Position,
     pub to: Position,
     pub color: PieceColor,
-    pub dir: Vector
+    pub dir: Vector,
+    pub is_phantom: bool
 }

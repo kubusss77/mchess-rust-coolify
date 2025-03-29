@@ -1,4 +1,4 @@
-use crate::board::{Board, Control, ControlType};
+use crate::board::{Board, Control, ControlThreat, ControlType};
 use crate::moves::{Move, MoveType, Position, Vector};
 use crate::piece::{PartialPiece, Piece, PieceColor, PieceType};
 use crate::pieces::bitboard::{A_FILE_INV, H_FILE_INV, RANK_2, RANK_7};
@@ -139,7 +139,9 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
             (((pos & A_FILE_INV) << 7) | ((pos & H_FILE_INV) << 9)) & en_passant_pos
         } & valid_squares;
 
-        bitboard_to_move(piece, en_passant_capture, MoveType::Capture, board, &mut moves, pin_dir);
+        if !board.is_phantom_pinned(piece.pos.y, piece.pos.x) {
+            bitboard_to_move(piece, en_passant_capture, MoveType::Capture, board, &mut moves, pin_dir);
+        }
     }
 
     moves
@@ -161,9 +163,32 @@ pub fn get_controlled_squares_pawn_bitboard(piece: &PartialPiece, board: &Board)
         (pos & H_FILE_INV) << 9
     };
 
-    let attacks = left_capture | right_capture;
+    let single_push = if piece.color == PieceColor::White {
+        (pos >> 8) & board.empty_squares
+    } else {
+        (pos << 8) & board.empty_squares
+    };
 
-    if attacks == 0 {
+    let double_push = if piece.color == PieceColor::White {
+        if (pos & RANK_2) != 0 {
+            ((pos >> 8) >> 8) & board.empty_squares & (single_push >> 8)
+        } else {
+            0
+        }
+    } else {
+        if (pos & RANK_7) != 0 {
+            ((pos << 8) << 8) & board.empty_squares & (single_push << 8)
+        } else {
+            0
+        }
+    };
+
+    let attacks = left_capture | right_capture;
+    let other = single_push | double_push;
+
+    let moves = attacks | other;
+
+    if moves == 0 {
         return controlled;
     }
 
@@ -179,8 +204,11 @@ pub fn get_controlled_squares_pawn_bitboard(piece: &PartialPiece, board: &Board)
         board.white_pieces
     };
 
-    let mut rem = attacks;
+    let mut rem = moves;
+    let mut a = 0;
     while rem != 0 {
+        a += 1;
+        if a > 100 { panic!("While loop has been running for over 100 iterations"); }
         let index = rem.trailing_zeros() as usize;
         let square = 1u64 << index;
         let to_pos = Position::from_bitboard(square);
@@ -198,7 +226,8 @@ pub fn get_controlled_squares_pawn_bitboard(piece: &PartialPiece, board: &Board)
             control_type,
             color: piece.color,
             direction: None,
-            obscured: false
+            obscured: false,
+            threat: if square & attacks != 0 { ControlThreat::Threatning } else { ControlThreat::PotentialMove }
         });
 
         rem &= rem - 1;
@@ -234,7 +263,8 @@ pub fn get_controlled_squares_pawn(piece: &PartialPiece, board: &Board) -> Vec<C
             control_type,
             color: piece.color, 
             direction: None,
-            obscured: false
+            obscured: false,
+            threat: ControlThreat::Threatning
         });
     }
 

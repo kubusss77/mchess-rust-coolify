@@ -200,6 +200,7 @@ impl Minimax {
                 moves: vec![]
             }
         }
+        let start_hash = board.hash;
         self.nodes += 1;
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
@@ -272,6 +273,9 @@ impl Minimax {
                 }
 
                 board.unmake_move(m, &history);
+                if start_hash != board.hash {
+                    println!("POS CORRUPTED AT DEPTH {depth}");
+                }
 
                 if result.value > value {
                     value = result.value;
@@ -327,6 +331,9 @@ impl Minimax {
                 let result = self.search(board, depth - 1, alpha, beta, true);
 
                 board.unmake_move(m, &history);
+                if start_hash != board.hash {
+                    println!("POS CORRUPTED AT DEPTH {depth}");
+                }
 
                 if result.value < value {
                     value = result.value;

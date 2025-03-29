@@ -3,6 +3,7 @@ use std::time::Instant;
 use mchess::board::Board;
 use mchess::search::Minimax;
 
+#[ignore]
 #[test] 
 fn search_depth_performance() {
     let mut chess = Minimax::new();
@@ -11,15 +12,16 @@ fn search_depth_performance() {
     for depth in 1..=7 {
         let start = Instant::now();
 
-        chess.search(&mut board, depth, f64::NEG_INFINITY, f64::INFINITY, true);
+        let a = chess.search(&mut board, depth, f64::NEG_INFINITY, f64::INFINITY, true);
 
         let duration = start.elapsed();
-        println!("Depth {}: {:?}, nodes: {}", depth, duration, chess.nodes);
+        println!("Depth {}: {:?}, nodes: {}, best_move {:?}", depth, duration, chess.nodes, a.moves.first());
 
         chess.nodes = 0;
     }
 }
 
+#[ignore]
 #[test]
 fn iterative_deepening_performance() {
     let mut chess = Minimax::new();

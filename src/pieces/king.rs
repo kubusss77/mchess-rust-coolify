@@ -1,4 +1,4 @@
-use crate::board::{Board, Control, ControlType};
+use crate::board::{Board, Control, ControlThreat, ControlType};
 use crate::moves::{Move, MoveType, Position};
 use crate::piece::{PartialPiece, Piece, PieceColor};
 
@@ -8,24 +8,27 @@ pub fn get_legal_moves_king_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
     let pos = piece.pos.to_bitboard();
     let mut moves = Vec::with_capacity(8);
 
-    let king_moves = ((pos << 1) & H_FILE_INV) |
-                     ((pos >> 1) & A_FILE_INV) |
+    let king_moves = ((pos << 1) & A_FILE_INV) |
+                     ((pos >> 1) & H_FILE_INV) |
                      (pos << 8) |
                      (pos >> 8) |
-                     ((pos << 9) & H_FILE_INV) |
-                     ((pos << 7) & A_FILE_INV) |
-                     ((pos >> 7) & H_FILE_INV) |
-                     ((pos >> 9) & A_FILE_INV);
+                     ((pos << 9) & A_FILE_INV) |
+                     ((pos << 7) & H_FILE_INV) |
+                     ((pos >> 7) & A_FILE_INV) |
+                     ((pos >> 9) & H_FILE_INV);
 
     let valid_moves = king_moves & (board.empty_squares | if piece.color == PieceColor::White { board.black_pieces } else { board.white_pieces });
 
     let mut rem = valid_moves;
 
+    let mut a = 0;
     while rem != 0 {
+        a += 1;
+        if a > 100 { panic!("While loop has been running for over 100 iterations"); }
         let index = rem.trailing_zeros() as usize;
         let to_pos = Position::from_bitboard(1u64 << index);
 
-        if !board.get_control_at(to_pos.y, to_pos.x, Some(piece.color.opposite())).is_empty() {
+        if !board.get_control_at(to_pos.y, to_pos.x, Some(piece.color.opposite()), true).is_empty() {
             rem &= rem - 1;
             continue;
         }
@@ -69,7 +72,7 @@ pub fn get_legal_moves_king_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
         })
     }
 
-    if board.castling.can_castle_qs(piece.color) && can_move_multifile(piece, board, piece.pos.y, vec![ ifile - 1, ifile - 2, ifile - 3 ]) {
+    if board.castling.can_castle_qs(piece.color) && can_move_multifile(piece, board, piece.pos.y, vec![ ifile - 1, ifile - 2 ]) {
         moves.push(Move {
             from: piece.pos,
             to: Position::from(ifile - 2, piece.pos.y as isize),
@@ -88,7 +91,7 @@ pub fn get_legal_moves_king_bitboard(piece: &Piece, board: &Board) -> Vec<Move> 
 
 fn can_move_to(piece: &Piece, board: &Board, rank: usize, file: usize, explicit: bool) -> bool {
     if !Board::in_bounds(rank, file) { return false };
-    if board.get_control_at(rank, file, Some(piece.color.opposite())).len() > 0 { return false };
+    if board.get_control_at(rank, file, Some(piece.color.opposite()), true).len() > 0 { return false };
     if explicit {
         board.is_empty(rank, file)
     } else {
@@ -171,14 +174,14 @@ pub fn get_controlled_squares_king_bitboard(piece: &PartialPiece, board: &Board)
     let pos = piece.pos.to_bitboard();
     let mut controlled = Vec::with_capacity(8);
 
-    let king_moves = ((pos << 1) & H_FILE_INV) |
-                     ((pos >> 1) & A_FILE_INV) |
+    let king_moves = ((pos << 1) & A_FILE_INV) |
+                     ((pos >> 1) & H_FILE_INV) |
                      (pos << 8) |
                      (pos >> 8) |
-                     ((pos << 9) & H_FILE_INV) |
-                     ((pos << 7) & A_FILE_INV) |
-                     ((pos >> 7) & H_FILE_INV) |
-                     ((pos >> 9) & A_FILE_INV);
+                     ((pos << 9) & A_FILE_INV) |
+                     ((pos << 7) & H_FILE_INV) |
+                     ((pos >> 7) & A_FILE_INV) |
+                     ((pos >> 9) & H_FILE_INV);
     
     if king_moves == 0 {
         return controlled;
@@ -197,7 +200,10 @@ pub fn get_controlled_squares_king_bitboard(piece: &PartialPiece, board: &Board)
     };
 
     let mut rem = king_moves;
+    let mut a = 0;
     while rem != 0 {
+        a += 1;
+        if a > 100 { panic!("While loop has been running for over 100 iterations"); }
         let index = rem.trailing_zeros() as usize;
         let square = 1u64 << index;
         let to_pos = Position::from_bitboard(square);
@@ -215,7 +221,8 @@ pub fn get_controlled_squares_king_bitboard(piece: &PartialPiece, board: &Board)
             control_type,
             color: piece.color,
             direction: None,
-            obscured: false
+            obscured: false,
+            threat: ControlThreat::All
         });
 
         rem &= rem - 1;
@@ -251,7 +258,8 @@ pub fn get_controlled_squares_king(piece: &PartialPiece, board: &Board) -> Vec<C
                 control_type,
                 color: piece.color, 
                 direction: None,
-                obscured: false
+                obscured: false,
+                threat: ControlThreat::All
             });
         }
     }

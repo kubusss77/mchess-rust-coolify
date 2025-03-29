@@ -1,4 +1,4 @@
-use mchess::{board::Board, moves::MoveType};
+use mchess::{board::Board, moves::MoveType, pieces::pawn::get_controlled_squares_pawn_bitboard};
 
 use crate::common::alg;
 
@@ -60,7 +60,7 @@ fn test_diagonally_pinned_pawn_capture() {
     let pos = alg("e2");
     let pawn = board.get_piece_at(pos.y, pos.x).unwrap();
     let moves = board.get_legal_moves(pawn.index);
-    assert_eq!(moves.len(), 1);
+    assert_eq!(moves.len(), 3);
 }
 
 #[test]
@@ -76,4 +76,13 @@ fn test_pawn_check_block() {
     let pawn = board.get_piece_at(pos.y, pos.x).unwrap();
     let moves = board.get_legal_moves(pawn.index);
     assert_eq!(moves.len(), 1);
+}
+
+#[test]
+fn test_pawn_control() {
+    let board = Board::from_fen("6k1/8/8/8/8/4P3/8/1K6 w - - 0 1");
+    let pos = alg("e3");
+    let pawn = board.get_piece_at(pos.y, pos.x).unwrap();
+    let control = get_controlled_squares_pawn_bitboard(&pawn.to_partial(), &board);
+    assert_eq!(control.len(), 3);
 }

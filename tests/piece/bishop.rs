@@ -1,4 +1,4 @@
-use mchess::board::Board;
+use mchess::{board::Board, pieces::bishop::get_controlled_squares_bishop_bitboard};
 
 use crate::common::alg;
 
@@ -36,4 +36,22 @@ fn test_bishop_check_block() {
     let bishop = board.get_piece_at(pos.y, pos.x).unwrap();
     let moves = board.get_legal_moves(bishop.index);
     assert_eq!(moves.len(), 2); 
+}
+
+#[test]
+fn test_bishop_control() {
+    let board = Board::from_fen("6k1/8/8/8/4p3/8/6B1/1K6 w - - 0 1");
+    let pos = alg("g2");
+    let bishop = board.get_piece_at(pos.y, pos.x).unwrap();
+    let control = get_controlled_squares_bishop_bitboard(&bishop.to_partial(), &board);
+    assert_eq!(control.len(), 5);
+}
+
+#[test]
+fn test_bishop_wrapping() {
+    let mut board = Board::from_fen("6k1/8/8/8/7B/8/8/6K1 w - - 0 1");
+    let pos = alg("h4");
+    let bishop = board.get_piece_at(pos.y, pos.x).unwrap();
+    let moves = board.get_legal_moves(bishop.index);
+    assert_eq!(moves.len(), 7);
 }
