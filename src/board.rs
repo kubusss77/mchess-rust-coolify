@@ -5,12 +5,13 @@ use std::{collections::HashMap, i64};
 use crate::r#const::{MAX_PHASE, MOBILITY_VALUE, MOVE_PREALLOC};
 use crate::piece::{BasePiece, PartialPiece, Piece, PieceColor, PieceType};
 use crate::moves::{Move, MoveType, Pin, Position, Vector};
-use crate::pieces::bishop::{get_controlled_squares_bishop_bitboard, get_legal_moves_bishop_bitboard, get_pins_bishop};
-use crate::pieces::king::{get_controlled_squares_king_bitboard, get_legal_moves_king_bitboard};
-use crate::pieces::knight::{get_controlled_squares_knight_bitboard, get_legal_moves_knight_bitboard};
-use crate::pieces::pawn::{get_controlled_squares_pawn_bitboard, get_legal_moves_pawn};
-use crate::pieces::queen::{get_controlled_squares_queen_bitboard, get_legal_moves_queen_bitboard, get_pins_queen};
-use crate::pieces::rook::{get_controlled_squares_rook_bitboard, get_legal_moves_rook_bitboard, get_pins_rook};
+use crate::pieces::bishop::{get_controlled_squares_bishop, get_legal_moves_bishop, get_pins_bishop};
+use crate::pieces::bitboard::COLOR_MASK;
+use crate::pieces::king::{get_controlled_squares_king, get_legal_moves_king};
+use crate::pieces::knight::{get_controlled_squares_knight, get_legal_moves_knight};
+use crate::pieces::pawn::{get_controlled_squares_pawn, get_legal_moves_pawn};
+use crate::pieces::queen::{get_controlled_squares_queen, get_legal_moves_queen, get_pins_queen};
+use crate::pieces::rook::{get_controlled_squares_rook, get_legal_moves_rook, get_pins_rook};
 
 use rand::rngs::StdRng;
 use rand::{SeedableRng, Rng};
@@ -530,11 +531,11 @@ impl Board {
         
         let mut moves = match piece.piece_type {
             PieceType::Pawn => get_legal_moves_pawn(&piece, self),
-            PieceType::Knight => get_legal_moves_knight_bitboard(&piece, self),
-            PieceType::Bishop => get_legal_moves_bishop_bitboard(&piece, self),
-            PieceType::Rook => get_legal_moves_rook_bitboard(&piece, self),
-            PieceType::Queen => get_legal_moves_queen_bitboard(&piece, self),
-            PieceType::King => get_legal_moves_king_bitboard(&piece, self)
+            PieceType::Knight => get_legal_moves_knight(&piece, self),
+            PieceType::Bishop => get_legal_moves_bishop(&piece, self),
+            PieceType::Rook => get_legal_moves_rook(&piece, self),
+            PieceType::Queen => get_legal_moves_queen(&piece, self),
+            PieceType::King => get_legal_moves_king(&piece, self)
         };
 
         for m in &mut moves {
@@ -584,6 +585,7 @@ impl Board {
     }
 
     pub fn make_move(&mut self, m: &Move) -> MoveInfo {
+        if !self.pieces.contains_key(&m.piece_index) { println!("{:?} {} {:?}", m, m.piece_index, self); }
         let mut history = MoveInfo {
             hash: self.hash,
             captured_piece: m.captured.clone(),
@@ -692,6 +694,57 @@ impl Board {
             self.hash ^= self.hash_table[rook_hash_index * 64 + new_rook_pos.y * 8 + new_rook_pos.x];
             
             self.check_control(rook.index);
+
+            match m.piece_color {
+                PieceColor::White => {
+                    self.castling.white = (false, false);
+                    self.hash ^= self.hash_table[12 * 64];
+                    self.hash ^= self.hash_table[12 * 64 + 1];
+                },
+                PieceColor::Black => {
+                    self.castling.black = (false, false);
+                    self.hash ^= self.hash_table[12 * 64 + 2];
+                    self.hash ^= self.hash_table[12 * 64 + 3];
+                }
+            }
+        }
+
+        if m.piece_type == PieceType::King {
+            match m.piece_color {
+                PieceColor::White => {
+                    self.castling.white = (false, false);
+                    self.hash ^= self.hash_table[12 * 64];
+                    self.hash ^= self.hash_table[12 * 64 + 1];
+                },
+                PieceColor::Black => {
+                    self.castling.black = (false, false);
+                    self.hash ^= self.hash_table[12 * 64 + 2];
+                    self.hash ^= self.hash_table[12 * 64 + 3];
+                }
+            }
+        }
+
+        if m.piece_type == PieceType::Rook {
+            match m.piece_color {
+                PieceColor::White => {
+                    if pos.x == 0 && self.castling.white.1 {
+                        self.castling.white.1 = false;
+                        self.hash ^= self.hash_table[12 * 64 + 1];
+                    } else if pos.x == 7 && self.castling.white.0 {
+                        self.castling.white.0 = false;
+                        self.hash ^= self.hash_table[12 * 64];
+                    }
+                },
+                PieceColor::Black => {
+                    if pos.x == 0 && self.castling.black.1 {
+                        self.castling.black.1 = false;
+                        self.hash ^= self.hash_table[12 * 64 + 3];
+                    } else if pos.x == 7 && self.castling.black.0 {
+                        self.castling.black.0 = false;
+                        self.hash ^= self.hash_table[12 * 64 + 2];
+                    }
+                }
+            }
         }
 
         self.update_board(m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion));
@@ -787,12 +840,12 @@ impl Board {
 
     fn get_piece_control(&self, partial: &PartialPiece) -> Vec<Control> { 
         match partial.piece_type {
-            PieceType::Pawn => get_controlled_squares_pawn_bitboard(partial, self),
-            PieceType::Knight => get_controlled_squares_knight_bitboard(partial, self),
-            PieceType::Bishop => get_controlled_squares_bishop_bitboard(partial, self),
-            PieceType::Rook => get_controlled_squares_rook_bitboard(partial, self),
-            PieceType::Queen => get_controlled_squares_queen_bitboard(partial, self),
-            PieceType::King => get_controlled_squares_king_bitboard(partial, self),
+            PieceType::Pawn => get_controlled_squares_pawn(partial, self),
+            PieceType::Knight => get_controlled_squares_knight(partial, self),
+            PieceType::Bishop => get_controlled_squares_bishop(partial, self),
+            PieceType::Rook => get_controlled_squares_rook(partial, self),
+            PieceType::Queen => get_controlled_squares_queen(partial, self),
+            PieceType::King => get_controlled_squares_king(partial, self),
         }
     }
 
@@ -968,7 +1021,24 @@ impl Board {
                 PieceColor::Black => ResultType::WhiteCheckmate
             }
         } else {
-            ResultType::None
+            let no_material = (self.white_queens | self.white_rooks | self.white_pawns | self.black_queens | self.black_rooks | self.black_pawns).count_ones() == 0;
+            let white_no_minor = (self.white_knights | self.white_bishops).count_ones() == 0;
+            let black_no_minor = (self.black_knights | self.black_bishops).count_ones() == 0;
+            let white_one_bishop = self.white_bishops.count_ones() == 1 && self.white_knights.count_ones() == 0;
+            let black_one_bishop = self.black_bishops.count_ones() == 1 && self.black_knights.count_ones() == 0;
+            let white_one_knight = self.white_knights.count_ones() == 1 && self.white_bishops.count_ones() == 0;
+            let black_one_knight = self.black_knights.count_ones() == 1 && self.black_bishops.count_ones() == 0;
+            if self.halfmove_clock > 100 ||
+                (no_material && white_no_minor && black_no_minor) ||
+                (no_material && white_no_minor && black_one_bishop) ||
+                (no_material && black_no_minor && white_one_bishop) ||
+                (no_material && white_no_minor && black_one_knight) ||
+                (no_material && black_no_minor && white_one_knight) ||
+                (no_material && white_one_bishop && black_one_bishop && self.white_bishops & COLOR_MASK == self.black_bishops & COLOR_MASK) {
+                ResultType::Draw
+            } else {
+                ResultType::None
+            }
         }
     }
 
@@ -995,14 +1065,14 @@ impl Board {
         }
     }
 
-    pub fn get_total_legal_moves(&self, _color: Option<PieceColor>) -> Vec<Move> {
+    pub fn get_total_legal_moves(&mut self, _color: Option<PieceColor>) -> Vec<Move> {
         let color = _color.unwrap_or(self.turn);
 
-        // if let Some(cached) = self.total_moves_cache.get(&color) {
-        //     if !cached.is_empty() {
-        //         return cached.clone();
-        //     }
-        // }
+        if let Some(cached) = self.total_moves_cache.get(&color) {
+            if !cached.is_empty() {
+                return cached.clone();
+            }
+        }
 
         let mut result = Vec::with_capacity(MOVE_PREALLOC);
 
@@ -1026,7 +1096,7 @@ impl Board {
             self.collect_all_legal_moves(color, &mut result);
         }
 
-        // self.total_moves_cache.insert(color, result.clone());
+        self.total_moves_cache.insert(color, result.clone());
 
         result
     }

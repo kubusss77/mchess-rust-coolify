@@ -1,6 +1,6 @@
 use std::usize;
 
-use crate::{board::{Board, ResultType}, r#const::*, piece::{PieceColor, PieceType}};
+use crate::{board::{Board, ResultType}, r#const::*, piece::{PartialPiece, PieceColor, PieceType}, pieces::{bitboard::{A_FILE_INV, H_FILE_INV}, queen::get_controlled_squares_queen}};
 use crate::moves::{Move, MoveType};
 
 #[derive(Debug, Clone, Copy)]
@@ -10,10 +10,10 @@ pub struct EvaluationResult {
 }
 
 impl EvaluationResult {
-    pub fn combine(res1: Self, res2: Self) -> Self {
+    pub fn combine(&self, res: Self) -> Self {
         EvaluationResult {
-            white: res1.white + res2.white,
-            black: res1.black + res2.black
+            white: self.white + res.white,
+            black: self.black + res.black
         }
     }
 
@@ -61,11 +61,13 @@ pub fn evaluate(board: &mut Board) -> EvaluationResult {
     let mobility = evaluate_mobility(board);
     let piece_safety = evaluate_piece_safety(board);
     let positions = evaluate_positions(board);
+    let king_safety = evaluate_kings_safety(board);
 
-    EvaluationResult::combine(value, 
-        EvaluationResult::combine(pawns, 
-            EvaluationResult::combine(mobility, 
-                EvaluationResult::combine(piece_safety, positions))))
+    value.combine(pawns)
+         .combine(mobility)
+         .combine(piece_safety)
+         .combine(positions)
+         .combine(king_safety)
 }
 
 pub fn evaluate_pawns(board: &mut Board) -> EvaluationResult {
@@ -196,27 +198,135 @@ pub fn evaluate_positions(board: &Board) -> EvaluationResult {
     value
 }
 
-pub fn evaluate_king_safety(board: &Board) -> EvaluationResult {
-    todo!()
+pub fn evaluate_king_safety(board: &Board, color: PieceColor) -> f64 {
+    // pawn shield
+    let king = board.get_king(color).unwrap();
+    let pos = king.pos.to_bitboard();
+
+    let mask = ((pos << 1) & A_FILE_INV) |
+               ((pos >> 1) & H_FILE_INV) |
+               (pos << 8) |
+               (pos >> 8) |
+               ((pos << 9) & A_FILE_INV) |
+               ((pos << 7) & H_FILE_INV) |
+               ((pos >> 7) & A_FILE_INV) |
+               ((pos >> 9) & H_FILE_INV);
+    
+    let shield = if color == PieceColor::White {
+        let north = (pos << 16) |
+                    ((pos << 17) & A_FILE_INV) |
+                    ((pos << 15) & H_FILE_INV);
+        
+        mask | north
+    } else {
+        let south = (pos >> 16) |
+                    ((pos >> 17) & A_FILE_INV) |
+                    ((pos >> 15) & H_FILE_INV);
+        
+        mask | south
+    };
+    
+    let pawns = if color == PieceColor::White {
+        board.white_pawns
+    } else {
+        board.black_pawns
+    };
+
+    let positions = shield & pawns;
+
+    let shield_value = (positions.count_ones() as f64) * PAWN_SHIELD_VALUE;
+
+    // pawn storm
+    let enemy_pawns = if color == PieceColor::White {
+        board.black_pawns
+    } else {
+        board.white_pawns
+    };
+
+    let storm_penalty = if color == PieceColor::White {
+        let zone1 = ((pos <<  8) | ((pos <<  9) & A_FILE_INV) | ((pos <<  7) & H_FILE_INV)) & enemy_pawns;
+        let zone2 = ((pos << 16) | ((pos << 17) & A_FILE_INV) | ((pos << 15) & H_FILE_INV)) & enemy_pawns;
+        let zone3 = ((pos << 24) | ((pos << 25) & A_FILE_INV) | ((pos << 23) & H_FILE_INV)) & enemy_pawns;
+
+        (zone1.count_ones() * 3 + zone2.count_ones() * 2 + zone3.count_ones()) as f64
+    } else {
+        let zone1 = ((pos >>  8) | ((pos >>  9) & A_FILE_INV) | ((pos >>  7) & H_FILE_INV)) & enemy_pawns;
+        let zone2 = ((pos >> 16) | ((pos >> 17) & A_FILE_INV) | ((pos >> 15) & H_FILE_INV)) & enemy_pawns;
+        let zone3 = ((pos >> 24) | ((pos >> 25) & A_FILE_INV) | ((pos >> 23) & H_FILE_INV)) & enemy_pawns;
+
+        (zone1.count_ones() * 3 + zone2.count_ones() * 2 + zone3.count_ones()) as f64
+    } * PAWN_STORM_PENALTY;
+
+    // virtual mobility
+    let mobility_penalty = (get_controlled_squares_queen(&PartialPiece {
+        piece_type: PieceType::Queen,
+        pos: king.pos,
+        color: king.color
+    }, &board).len() as f64) * VIRTUAL_MOBILITY_PENALTY;
+
+    // attack penalty
+    let mut attacks = 0.0;
+    let mut rem = shield;
+    while rem != 0 {
+        let index = rem.trailing_zeros();
+        let square = 1u64 << index;
+
+        if let Some(entries) = board.control_bitboards.control_entries.get(&square) {
+            attacks += entries.len() as f64;
+        }
+
+        rem &= rem - 1;
+    }
+    let attack_penalty = attacks * ATTACK_PENALTY;
+
+    // position value
+    let shift = if king.color == PieceColor::White {
+        63.0 - pos.trailing_zeros() as f64
+    } else {
+        pos.trailing_zeros() as f64
+    };
+    let log_scale = (64.0_f64).log10();
+    let position_value = (64.0 - 0.5 * shift.powf(1.15)).log10() / log_scale;
+    let scaled_position_value = (position_value * 5.0) - 3.5;
+
+    let safety_score = shield_value + scaled_position_value - storm_penalty - mobility_penalty - attack_penalty;
+
+    let attack_potential = if king.color == PieceColor::White {
+        let queens = (board.black_queens.count_ones() as f64) * 3.0;
+        let rooks = (board.black_rooks.count_ones() as f64) * 2.0;
+        let bishops = (board.black_bishops.count_ones() as f64) * 1.5;
+        let knights = (board.black_knights.count_ones() as f64) * 1.5;
+        
+        queens + rooks + bishops + knights
+    } else {
+        let queens = (board.white_queens.count_ones() as f64) * 3.0;
+        let rooks = (board.white_rooks.count_ones() as f64) * 2.0;
+        let bishops = (board.white_bishops.count_ones() as f64) * 1.5;
+        let knights = (board.white_knights.count_ones() as f64) * 1.5;
+        
+        queens + rooks + bishops + knights
+    };
+
+    const MAX_ATTACK_POTENTIAL: f64 = 13.0;
+
+    let scale_factor = attack_potential / MAX_ATTACK_POTENTIAL;
+
+    const MIN_SCALE: f64 = 0.2;
+    let scale = scale_factor.max(MIN_SCALE);
+
+    if safety_score >= 0.0 {
+        safety_score
+    } else {
+        safety_score * scale
+    }
 }
 
-pub fn evaluate_capture(m: &Move) -> f64 {
-    let captured_value = m.captured.as_ref().expect("Captured piece expected for MoveType::Capture").piece_type.to_value() as f64;
-    match m.piece_type {
-        PieceType::King => captured_value * CAPTURE_VALUE,
-        _ => ((m.piece_type.to_value() as f64 - captured_value) + 8.0) * CAPTURE_VALUE
+pub fn evaluate_kings_safety(board: &Board) -> EvaluationResult {
+    let white = evaluate_king_safety(board, PieceColor::White);
+    let black = evaluate_king_safety(board, PieceColor::Black);
+
+    EvaluationResult { 
+        white, 
+        black 
     }
-} 
-
-pub fn evaluate_move(m: &Move) -> f64 {
-    let types = &m.move_type;
-
-    let mut value = 0.0;
-    if types.contains(&MoveType::Capture) { value += evaluate_capture(m) };
-    if types.contains(&MoveType::Promotion) { value += m.promote_to.expect("Chosen promotion piece expected for MoveType::Promotion").to_value() as f64 * PROMOTION_VALUE };
-    if types.contains(&MoveType::Castling) { value += CASTLING_VALUE };
-    if types.contains(&MoveType::Check) { value += CHECK_VALUE };
-    // todo: implement pawn/piece development bonus
-
-    value
 }

@@ -7,6 +7,11 @@ pub const FREE_CAPTURE_BONUS: f64 = 500.0;
 pub const CHECK_VALUE: f64 = 350.0;
 pub const CASTLING_VALUE: f64 = 300.0;
 
+pub const PAWN_SHIELD_VALUE: f64 = 10.0;
+pub const PAWN_STORM_PENALTY: f64 = 1.5;
+pub const VIRTUAL_MOBILITY_PENALTY: f64 = 1.2;
+pub const ATTACK_PENALTY: f64 = 1.2;
+
 pub const PAWN_DEVELOPMENT_BONUS: f64 = 150.0;
 pub const PAWN_ISOLATION_PENALTY: f64 = 0.2;
 pub const MOBILITY_VALUE: f64 = 0.05;

@@ -4,7 +4,7 @@ use crate::common::alg;
 
 #[test]
 fn test_pin_detection() {
-    let mut board = Board::from_fen("2k5/3p4/8/5B2/8/8/8/4K3 w - - 0 1");
+    let board = Board::from_fen("2k5/3p4/8/5B2/8/8/8/4K3 w - - 0 1");
     
     let pos = alg("d7");
     

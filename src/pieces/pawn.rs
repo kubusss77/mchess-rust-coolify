@@ -147,7 +147,7 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
     moves
 }
 
-pub fn get_controlled_squares_pawn_bitboard(piece: &PartialPiece, board: &Board) -> Vec<Control> {
+pub fn get_controlled_squares_pawn(piece: &PartialPiece, board: &Board) -> Vec<Control> {
     let pos = piece.pos.to_bitboard();
     let mut controlled = Vec::with_capacity(2);
 
@@ -231,41 +231,6 @@ pub fn get_controlled_squares_pawn_bitboard(piece: &PartialPiece, board: &Board)
         });
 
         rem &= rem - 1;
-    }
-
-    controlled
-}
-
-pub fn get_controlled_squares_pawn(piece: &PartialPiece, board: &Board) -> Vec<Control> {
-    let file = piece.pos.x;
-    let rank = piece.pos.y;
-
-    let dir = if piece.color == PieceColor::White { -1 } else { 1 };
-
-    let mut controlled: Vec<Control> = Vec::with_capacity(2);
-
-    for square in [-1, 1] {
-        let t_file = Position::clamp(file as isize + square);
-        let t_rank = Position::clamp(rank as isize + dir);
-
-        if !Board::in_bounds(t_rank, t_file) { continue };
-
-        let other = board.get_piece_at(t_rank, t_file);
-
-        let control_type = match &other {
-            Some(p) if p.color == piece.color => ControlType::Defend,
-            Some(_) => ControlType::Attack,
-            None => ControlType::Control
-        };
-
-        controlled.push(Control { 
-            pos: Position { x: t_file, y: t_rank }, 
-            control_type,
-            color: piece.color, 
-            direction: None,
-            obscured: false,
-            threat: ControlThreat::Threatning
-        });
     }
 
     controlled

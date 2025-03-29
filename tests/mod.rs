@@ -13,6 +13,7 @@ mod special {
     pub mod make_unmake;
     pub mod control;
     pub mod blocks;
+    pub mod evaluation;
 }
 
 mod common;

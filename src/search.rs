@@ -200,7 +200,6 @@ impl Minimax {
                 moves: vec![]
             }
         }
-        let start_hash = board.hash;
         self.nodes += 1;
         if board.get_result() != ResultType::None || depth == 0 {
             let evaluation = self.evaluate(board);
