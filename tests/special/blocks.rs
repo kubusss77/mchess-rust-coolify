@@ -1,4 +1,4 @@
-use mchess::{board::Board, moves::{Move, MoveType}};
+use mchess::{board::Board, moves::{Move, MoveType}, piece::PieceColor};
 
 use crate::common::{alg, show_mask};
 
@@ -45,4 +45,30 @@ fn test_block_moves() {
     println!("{:?}", board.get_block_moves(mchess::piece::PieceColor::Black));
 
     assert_eq!(board.get_block_moves(mchess::piece::PieceColor::Black).len(), 6);
+}
+
+#[test]
+fn test_king_checked_kiwipete() {
+    let mut board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+    let moves = board.get_total_legal_moves(None);
+
+    for m in moves {
+        if format!("{:?}", m) == "e1f1" {
+            board.make_move(&m);
+        }
+    }
+
+    println!("{:?}", board.get_king(PieceColor::White).unwrap().pos);
+
+    let moves = board.get_total_legal_moves(None);
+
+    for m in moves {
+        if format!("{:?}", m) == "h3g2" {
+            board.make_move(&m);
+
+            println!("{:?}", board.check.get(&PieceColor::Black));
+
+            assert_eq!(board.get_total_legal_moves(None).len(), 4);
+        }
+    }
 }

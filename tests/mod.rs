@@ -14,6 +14,7 @@ mod special {
     pub mod control;
     pub mod blocks;
     pub mod evaluation;
+    pub mod castling;
 }
 
 mod common;

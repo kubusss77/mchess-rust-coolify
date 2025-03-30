@@ -3,7 +3,6 @@ use std::time::Instant;
 use mchess::board::Board;
 use mchess::search::Minimax;
 
-#[ignore]
 #[test] 
 fn search_depth_performance() {
     let mut chess = Minimax::new();

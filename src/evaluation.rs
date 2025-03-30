@@ -1,7 +1,6 @@
 use std::usize;
 
 use crate::{board::{Board, ResultType}, r#const::*, piece::{PartialPiece, PieceColor, PieceType}, pieces::{bitboard::{A_FILE_INV, H_FILE_INV}, queen::get_controlled_squares_queen}};
-use crate::moves::{Move, MoveType};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EvaluationResult {

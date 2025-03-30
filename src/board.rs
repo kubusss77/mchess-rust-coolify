@@ -79,7 +79,7 @@ pub enum ControlType {
     Attack,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ControlThreat {
     Threatning,
     PotentialMove,
@@ -216,7 +216,6 @@ pub struct Board {
     pub castling: Castling,
     pub target_square: Option<Position>,
     pub target_piece: i32,
-    pub kings: HashMap<PieceColor, Option<Piece>>,
     pub result_cache: ResultType,
     pub total_moves_cache: HashMap<PieceColor, Vec<Move>>,
     pub moves_cache: HashMap<usize, Vec<Move>>,
@@ -277,7 +276,6 @@ impl Board {
             // control_table: vec![vec![vec![]; 8]; 8],
             // control_table_lookup: HashMap::new(),
             pin_table: vec![vec![vec![]; 8]; 8],
-            kings: HashMap::new(),
             result_cache: ResultType::NotCached,
             total_moves_cache: HashMap::new(),
             moves_cache: HashMap::new(),
@@ -341,7 +339,6 @@ impl Board {
                         index,
                         legal_moves_cache: vec![],
                         legal_moves: true,
-                        has_moved: false,
                         _directional: match char.to_ascii_lowercase() {
                             'b' | 'r' | 'q' => true,
                             _ => false
@@ -352,17 +349,13 @@ impl Board {
                     board.pieces.insert(index, piece.clone());
                     // board.control_table_lookup.insert(index, vec![]);
 
-                    if piece.piece_type == PieceType::King {
-                        board.kings.insert(piece.color.clone(), Some(piece.clone()));
-                    }
-
                     board.bb_or_pos(piece.get_base(), piece.pos);
                 }
                 i += 1;
             }
         }
 
-        if !board.kings.contains_key(&PieceColor::White) || !board.kings.contains_key(&PieceColor::Black) {
+        if board.white_king == 0u64 || board.black_king == 0u64 {
             panic!("Invalid chess board");
         }
 
@@ -501,9 +494,6 @@ impl Board {
             block_mask: !0u64
         });
         
-        self.kings.insert(PieceColor::White, self.get_king(PieceColor::White));
-        self.kings.insert(PieceColor::Black, self.get_king(PieceColor::Black));
-
         self.result_cache = ResultType::NotCached;
 
         self.mobility_cache.clear();
@@ -585,7 +575,7 @@ impl Board {
     }
 
     pub fn make_move(&mut self, m: &Move) -> MoveInfo {
-        if !self.pieces.contains_key(&m.piece_index) { println!("{:?} {} {:?}", m, m.piece_index, self); }
+        if !self.pieces.contains_key(&m.piece_index) { println!("{:?} {}\n{:?}", m, m.piece_index, self); }
         let mut history = MoveInfo {
             hash: self.hash,
             captured_piece: m.captured.clone(),
@@ -909,8 +899,7 @@ impl Board {
 
         let mut lookup_entries = Vec::with_capacity(controlled_squares.len());
 
-        let king = self.get_king(piece.color.opposite()).unwrap();
-        let king_pos = king.pos;
+        let king_pos = self.get_king_pos(piece.color.opposite());
 
         let mut count = 0;
 
@@ -1002,14 +991,20 @@ impl Board {
         self.check_control(piece_index);
     }
 
+    pub fn get_king_pos(&self, color: PieceColor) -> Position {
+        let square = if color == PieceColor::White {
+            self.white_king
+        } else {
+            self.black_king
+        };
+
+        Position::from_bitboard(square)
+    }
+
     pub fn get_king(&self, color: PieceColor) -> Option<Piece> {
-        if let Some(Some(king)) = self.kings.get(&color) {
-            return Some(king.clone());
-        }
-        
-        self.pieces.values()
-            .find(|p| p.piece_type == PieceType::King && p.color == color)
-            .cloned()
+        let pos = self.get_king_pos(color);
+
+        self.get_piece_at(pos.y, pos.x)
     }
 
     pub fn get_result(&mut self) -> ResultType {
@@ -1120,13 +1115,11 @@ impl Board {
             color: m.piece_color
         };
         let controlled_squares = self.get_piece_control(&partial);
-        let king = self.get_king(m.piece_color.opposite());
-        if let Some(king_piece) = king {
-            let king_pos = king_piece.pos;
-            for control in &controlled_squares {
-                if control.pos == king_pos {
-                    return true
-                }
+        
+        let king_pos = self.get_king_pos(m.piece_color.opposite());
+        for control in &controlled_squares {
+            if control.pos == king_pos {
+                return true
             }
         }
         false

@@ -47,7 +47,6 @@ pub struct Piece {
     pub index: usize,
     pub legal_moves_cache: Vec<Move>,
     pub legal_moves: bool,
-    pub has_moved: bool,
     pub _directional: bool,
 }
 
