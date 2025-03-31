@@ -20,7 +20,6 @@ fn search_depth_performance() {
     }
 }
 
-#[ignore]
 #[test]
 fn iterative_deepening_performance() {
     let mut chess = Minimax::new();

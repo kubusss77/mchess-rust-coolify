@@ -94,7 +94,6 @@ impl Minimax {
             println!("Move {}: {:?} color: {:?} from: {:?} to: {:?}", 
                      i+1, m, m.piece_color, m.from, m.to);
             
-            // Check if move is legal
             let legal_moves = temp_board.get_total_legal_moves(None);
 
             let move_exists = legal_moves.iter().any(|legal_m| 
@@ -209,7 +208,7 @@ impl Minimax {
             }
         }
 
-        if depth <= 2 && board.check.get(&board.turn).unwrap().checked == 0u64 {
+        if depth <= 2 && board.get_check(board.turn).checked == 0u64 {
             let eval = self.evaluate(board).to_value();
 
             let margin = DEFAULT_MARGIN * depth as f64;
@@ -246,10 +245,6 @@ impl Minimax {
             let mut moves: Vec<Move> = vec![];
             let mut best_move = None;
             let mut node_type = NodeType::All;
-
-            if let Some(res) = self.prune_null_moves(board, depth, alpha, beta, maximizer) {
-                return res;
-            }
 
             let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
 
@@ -317,10 +312,6 @@ impl Minimax {
             let mut moves: Vec<Move> = vec![];
             let mut best_move = None;
             let mut node_type = NodeType::All;
-
-            if let Some(res) = self.prune_null_moves(board, depth, alpha, beta, maximizer) {
-                return res;
-            }
             
             let legal_moves = self.sort(board.get_total_legal_moves(None), board, depth);
             
@@ -371,40 +362,6 @@ impl Minimax {
                 moves
             }
         }
-    }
-
-    pub fn prune_null_moves(&mut self, board: &mut Board, depth: u8, alpha: f64, beta: f64, maximizer: bool) -> Option<SearchResult> {
-        if depth < 3 || board.check.get(&board.turn).unwrap().checked == 0u64 || board.get_result().is_end() {
-            return None
-        }
-
-        let eval = self.evaluate(board);
-        let pos_value = eval.to_value().abs();
-
-        let r = if pos_value > 1.5 { 3 + depth / 4 } else { 2 + depth / 6 };
-
-        board.turn = board.turn.opposite();
-        board.hash ^= board.hash_table[12 * 64 + 4];
-        board.hash ^= board.hash_table[12 * 64 + 5];
-
-        let null_result = self.search(board, depth - r, -beta, -beta + 1.0, !maximizer);
-        
-        board.turn = board.turn.opposite();
-        board.hash ^= board.hash_table[12 * 64 + 4];
-        board.hash ^= board.hash_table[12 * 64 + 5];
-
-        if -null_result.value >= beta {
-            if depth >= 6 {
-                let verify_result = self.search(board, depth - r, alpha, beta, maximizer);
-                if verify_result.value >= beta {
-                    return Some(SearchResult { value: beta, moves: vec![] });
-                }
-            } else {
-                return Some(SearchResult { value: beta, moves: vec![] });
-            }
-        }
-
-        None
     }
 
     pub fn evaluate(&mut self, board: &mut Board) -> EvaluationResult {

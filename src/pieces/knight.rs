@@ -9,15 +9,13 @@ pub fn get_legal_moves_knight(piece: &Piece, board: &Board) -> Vec<Move> {
 
     if board.is_pinned(piece.pos.y, piece.pos.x).is_some() { return moves };
 
-    let check_info = board.check.get(&piece.color);
+    let check_info = board.get_check(piece.color);
     
     let mut valid_squares = !0u64;
-    if let Some(check_info) = check_info {
-        if check_info.double_checked != 0u64 {
-            return moves;
-        }
-        if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
+    if check_info.double_checked != 0u64 {
+        return moves;
     }
+    if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
 
     let knight_moves = ((pos << 17) & A_FILE_INV) |
                        ((pos << 15) & H_FILE_INV) |
@@ -38,13 +36,11 @@ pub fn get_legal_moves_knight(piece: &Piece, board: &Board) -> Vec<Move> {
         let index = rem.trailing_zeros() as usize;
         let to_pos = Position::from_bitboard(1u64 << index);
 
-        if let Some(check) = check_info {
-            if check.checked != 0u64 && check.block_positions.is_some() {
-                let block_pos = check.block_positions.as_ref().unwrap();
-                if !block_pos.contains(&to_pos) {
-                    rem &= rem - 1;
-                    continue;
-                }
+        if check_info.checked != 0u64 && check_info.block_positions.is_some() {
+            let block_pos = check_info.block_positions.as_ref().unwrap();
+            if !block_pos.contains(&to_pos) {
+                rem &= rem - 1;
+                continue;
             }
         }
 

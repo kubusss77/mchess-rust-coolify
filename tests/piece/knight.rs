@@ -29,7 +29,7 @@ fn test_knight_check_block() {
     let moves = board.get_legal_moves(knight.index);
     println!("{:?}\n{:?}", moves, board);
     show_mask(board.bb.all_pieces);
-    show_mask(board.check.get(&PieceColor::White).unwrap().block_mask);
+    show_mask(board.get_check(PieceColor::White).block_mask);
     assert_eq!(moves.len(), 2);
 }
 

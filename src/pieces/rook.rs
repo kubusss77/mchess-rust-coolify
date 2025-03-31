@@ -106,15 +106,13 @@ pub fn get_legal_moves_rook(piece: &Piece, board: &Board) -> Vec<Move> {
     let mut moves = Vec::with_capacity(14);
 
     let pin_dir = board.is_pinned(piece.pos.y, piece.pos.x);
-    let check_info = board.check.get(&piece.color);
+    let check_info = board.get_check(piece.color);
     
     let mut valid_squares = !0u64;
-    if let Some(check_info) = check_info {
-        if check_info.double_checked != 0u64 {
-            return moves;
-        }
-        if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
+    if check_info.double_checked != 0u64 {
+        return moves;
     }
+    if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
 
     let (attacks, _) = generate_rook_rays(pos, board.bb.all_pieces, 0u64, false);
 

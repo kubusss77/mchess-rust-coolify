@@ -65,6 +65,10 @@ impl Position {
             return dx * dir.x > 0 && dy * dir.y > 0;
         }
     }
+
+    pub fn shift(&self, vec: Vector) -> Position {
+        Position::from(self.x as isize + vec.x, self.y as isize + vec.y)
+    }
 }
 
 impl fmt::Debug for Position {
@@ -162,7 +166,19 @@ impl fmt::Debug for Move {
 
         // write!(f, "{}{}{}", piece_char, file_char, 8 - self.to.y);
 
-        write!(f, "{:?}{:?}", self.from, self.to)
+        let promotion_char = if let Some(piece_type) = self.promote_to {
+            match piece_type {
+                PieceType::Knight => "n",
+                PieceType::Bishop => "b",
+                PieceType::Rook => "r",
+                PieceType::Queen => "q",
+                _ => unreachable!()
+            }
+        } else {
+            ""
+        };
+
+        write!(f, "{:?}{:?}{}", self.from, self.to, promotion_char)
     }
 }
 

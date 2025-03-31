@@ -18,7 +18,7 @@ fn test_block_positions() {
         piece_type: queen.piece_type,
         with: None
     });
-    let check = board.check.get(&mchess::piece::PieceColor::Black).unwrap();
+    let check = board.get_check(PieceColor::Black);
 
     show_mask(check.block_mask);
 
@@ -66,9 +66,20 @@ fn test_king_checked_kiwipete() {
         if format!("{:?}", m) == "h3g2" {
             board.make_move(&m);
 
-            println!("{:?}", board.check.get(&PieceColor::Black));
+            println!("{:?}", board.get_check(PieceColor::Black));
 
             assert_eq!(board.get_total_legal_moves(None).len(), 4);
         }
     }
+}
+
+#[test]
+fn test_king_checked_en_passant() {
+    let mut board = Board::from_fen("8/8/8/1Ppp3r/1K3p1k/8/4P1P1/1R6 w - c6 0 3");
+
+    show_mask(board.get_check(PieceColor::White).block_mask);
+    
+    println!("{:?}", board.get_total_legal_moves(None));
+
+    assert_eq!(board.get_total_legal_moves(None).len(), 7);
 }

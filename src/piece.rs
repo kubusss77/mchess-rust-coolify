@@ -22,6 +22,10 @@ impl PieceType {
             PieceType::King => 100
         }
     }
+    
+    pub fn is_directional(&self) -> bool {
+        matches!(self, PieceType::Bishop | PieceType::Rook | PieceType::Queen)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
@@ -46,8 +50,7 @@ pub struct Piece {
     pub pos: Position,
     pub index: usize,
     pub legal_moves_cache: Vec<Move>,
-    pub legal_moves: bool,
-    pub _directional: bool,
+    pub legal_moves: bool
 }
 
 impl Piece {

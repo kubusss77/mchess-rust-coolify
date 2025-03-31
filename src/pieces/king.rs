@@ -56,9 +56,11 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
         rem &= rem - 1;
     }
 
+    let is_checked = !board.get_control_at(piece.pos.y, piece.pos.x, Some(piece.color.opposite()), true).is_empty();
+
     let ifile = piece.pos.x as isize;
 
-    if board.castling.can_castle_ks(piece.color) && can_move_multifile(piece, board, piece.pos.y, vec![ ifile + 1, ifile + 2 ]) {
+    if board.castling.can_castle_ks(piece.color) && !is_checked && can_move_multifile(piece, board, piece.pos.y, vec![ ifile + 1, ifile + 2 ]) {
         moves.push(Move {
             from: piece.pos,
             to: Position { x: piece.pos.x + 2, y: piece.pos.y },
@@ -72,7 +74,7 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
         })
     }
 
-    if board.castling.can_castle_qs(piece.color) && can_move_multifile(piece, board, piece.pos.y, vec![ ifile - 1, ifile - 2 ]) && board.is_empty(piece.pos.y, Position::clamp(ifile - 3)) {
+    if board.castling.can_castle_qs(piece.color) && !is_checked && can_move_multifile(piece, board, piece.pos.y, vec![ ifile - 1, ifile - 2 ]) && board.is_empty(piece.pos.y, Position::clamp(ifile - 3)) {
         moves.push(Move {
             from: piece.pos,
             to: Position::from(ifile - 2, piece.pos.y as isize),

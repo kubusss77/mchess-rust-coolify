@@ -10,7 +10,6 @@ fn test_make_unmake_consistency() {
         let history = board.make_move(&m);
         board.unmake_move(&m, &history);
         
-        // Verify board state is fully restored
         assert_eq!(board.hash, original.hash, "Hash mismatch after unmake_move");
         assert_eq!(board.bb.white_pieces, original.bb.white_pieces, "White pieces mismatch");
         assert_eq!(board.bb.black_pieces, original.bb.black_pieces, "Black pieces mismatch");

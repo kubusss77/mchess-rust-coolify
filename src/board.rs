@@ -118,10 +118,10 @@ pub struct ControlTableEntry {
 }
 
 impl ControlTableEntry {
-    pub fn to_move(&self, board: &Board, position: Position) -> Move {
+    pub fn to_move(&self, board: &Board, position: Position, is_en_passant: bool) -> Move {
         Move {
             from: self.origin.pos,
-            to: position,
+            to: if is_en_passant { board.target_square.unwrap() } else { position },
             piece_index: self.index,
             piece_color: self.color,
             piece_type: self.origin.piece_type,
@@ -166,9 +166,6 @@ impl ControlBitboards {
     }
 }
 
-pub type ControlTable = Vec<Vec<Vec<ControlTableEntry>>>;
-pub type ControlTableLookup = HashMap<usize, Vec<(Position, ControlType)>>;
-
 #[derive(Clone)]
 pub struct MoveInfo {
     pub hash: i64,
@@ -179,7 +176,6 @@ pub struct MoveInfo {
     pub turn: PieceColor,
     pub castling: Castling,
     pub promoted_type: Option<PieceType>,
-    pub affected_pieces: Vec<usize>,
     pub control_bitboards: ControlBitboards,
     pub target_square: Option<Position>,
     pub target_piece: i32,
@@ -211,8 +207,6 @@ pub struct BitboardData {
 pub struct Board {
     pub bb: BitboardData,
     pub board: Vec<Vec<isize>>,
-    // pub control_table: ControlTable,
-    // pub control_table_lookup: ControlTableLookup,
     pub pin_table: Vec<Vec<Vec<Pin>>>,
     pub pieces: HashMap<usize, Piece>,
     pub moves: i32,
@@ -225,7 +219,8 @@ pub struct Board {
     pub total_moves_cache: HashMap<PieceColor, Vec<Move>>,
     pub moves_cache: HashMap<usize, Vec<Move>>,
     pub move_availability: HashMap<usize, bool>,
-    pub check: HashMap<PieceColor, CheckInfo>,
+    pub white_check: CheckInfo,
+    pub black_check: CheckInfo,
     pub hash_table: Vec<i64>,
     pub hash: i64,
     pub mobility_cache: HashMap<usize, f64>,
@@ -279,14 +274,13 @@ impl Board {
             },
             target_square,
             target_piece: -1,
-            // control_table: vec![vec![vec![]; 8]; 8],
-            // control_table_lookup: HashMap::new(),
             pin_table: vec![vec![vec![]; 8]; 8],
             result_cache: ResultType::NotCached,
             total_moves_cache: HashMap::new(),
             moves_cache: HashMap::new(),
             move_availability: HashMap::new(),
-            check: HashMap::new(),
+            white_check: CheckInfo::default(),
+            black_check: CheckInfo::default(),
             hash_table: Vec::with_capacity(782),
             hash: i64::MAX,
             mobility_cache: HashMap::new(),
@@ -344,16 +338,11 @@ impl Board {
                         pos: Position { x: i, y: j },
                         index,
                         legal_moves_cache: vec![],
-                        legal_moves: true,
-                        _directional: match char.to_ascii_lowercase() {
-                            'b' | 'r' | 'q' => true,
-                            _ => false
-                        }
+                        legal_moves: true
                     };
 
                     board.board[i][j] = board.pieces.len() as isize;
                     board.pieces.insert(index, piece.clone());
-                    // board.control_table_lookup.insert(index, vec![]);
 
                     board.bb_or_pos(piece.get_base(), piece.pos);
                 }
@@ -370,20 +359,6 @@ impl Board {
         board.castling.black = (c.contains("k"), c.contains("q"));
         board.halfmove_clock = halfmoves.parse().unwrap();
         board.moves = moves.parse().unwrap();
-
-        board.check.insert(PieceColor::White, CheckInfo {
-            checked: 0u64,
-            double_checked: 0u64,
-            block_positions: None,
-            block_mask: !0u64
-        });
-
-        board.check.insert(PieceColor::Black, CheckInfo {
-            checked: 0u64,
-            double_checked: 0u64,
-            block_positions: None,
-            block_mask: !0u64
-        });
         
         if target_square != "-" {
             board.target_square = Some(Position {
@@ -484,21 +459,9 @@ impl Board {
     pub fn clear(&mut self) {
         self.moves_cache.clear();
         self.total_moves_cache.clear();
-        self.check.clear();
 
-        self.check.insert(PieceColor::White, CheckInfo {
-            checked: 0u64,
-            double_checked: 0u64,
-            block_positions: None,
-            block_mask: !0u64
-        });
-
-        self.check.insert(PieceColor::Black, CheckInfo {
-            checked: 0u64,
-            double_checked: 0u64,
-            block_positions: None,
-            block_mask: !0u64
-        });
+        self.white_check = CheckInfo::default();
+        self.black_check = CheckInfo::default();
         
         self.result_cache = ResultType::NotCached;
 
@@ -509,8 +472,6 @@ impl Board {
         self.pieces.get(&piece_index)
     }
 
-    // TODO: discovered attacks
-    // nevermind, i forgot i already had pin detection
     pub fn get_legal_moves(&self, piece_index: usize) -> Vec<Move> {
         if !self.pieces.contains_key(&piece_index) {
             return Vec::with_capacity(0);
@@ -580,14 +541,52 @@ impl Board {
         self.hash ^= self.hash_table[12 * 64 + 5];
     }
 
+    fn reset_rook_castling(&mut self, pos: Position, piece_color: PieceColor) {
+        match piece_color {
+            PieceColor::White => {
+                if pos.x == 0 && self.castling.white.1 {
+                    self.castling.white.1 = false;
+                    self.hash ^= self.hash_table[12 * 64 + 1];
+                } else if pos.x == 7 && self.castling.white.0 {
+                    self.castling.white.0 = false;
+                    self.hash ^= self.hash_table[12 * 64];
+                }
+            },
+            PieceColor::Black => {
+                if pos.x == 0 && self.castling.black.1 {
+                    self.castling.black.1 = false;
+                    self.hash ^= self.hash_table[12 * 64 + 3];
+                } else if pos.x == 7 && self.castling.black.0 {
+                    self.castling.black.0 = false;
+                    self.hash ^= self.hash_table[12 * 64 + 2];
+                }
+            }
+        }
+    }
+
+    fn reset_castling(&mut self, piece_color: PieceColor) {
+        match piece_color {
+            PieceColor::White => {
+                self.castling.white = (false, false);
+                self.hash ^= self.hash_table[12 * 64];
+                self.hash ^= self.hash_table[12 * 64 + 1];
+            },
+            PieceColor::Black => {
+                self.castling.black = (false, false);
+                self.hash ^= self.hash_table[12 * 64 + 2];
+                self.hash ^= self.hash_table[12 * 64 + 3];
+            }
+        }
+    }
+
     pub fn make_move(&mut self, m: &Move) -> MoveInfo {
         if !self.pieces.contains_key(&m.piece_index) { println!("{:?} {}\n{:?}\n{:?}", m, m.piece_index, self, self.pieces); }
-        let mut history = MoveInfo {
+        let history = MoveInfo {
             hash: self.hash,
             captured_piece: m.captured.clone(),
             halfmove_clock: self.halfmove_clock,
-            white_check: self.check.get(&PieceColor::White).unwrap_or(&CheckInfo::default()).clone(),
-            black_check: self.check.get(&PieceColor::Black).unwrap_or(&CheckInfo::default()).clone(),
+            white_check: self.white_check.clone(),
+            black_check: self.black_check.clone(),
             turn: self.turn,
             castling: self.castling.clone(),
             promoted_type: if m.move_type.contains(&MoveType::Promotion) {
@@ -596,7 +595,6 @@ impl Board {
                 None
             },
             control_bitboards: self.control_bitboards.clone(),
-            affected_pieces: Vec::with_capacity(0),
             target_square: self.target_square.clone(),
             target_piece: self.target_piece,
             bitboards: self.bb.clone()
@@ -606,9 +604,8 @@ impl Board {
 
         self.update_bitboard_pos((m.piece_type, m.piece_color), m.from, m.to);
 
-        self.check.clear();
-        self.check.insert(PieceColor::White, CheckInfo::default());
-        self.check.insert(PieceColor::Black, CheckInfo::default());
+        self.white_check = CheckInfo::default();
+        self.black_check = CheckInfo::default();
 
         if m.move_type.contains(&MoveType::Capture) && m.captured.is_some() {
             let captured = m.captured.as_ref().unwrap();
@@ -632,6 +629,12 @@ impl Board {
             self.hash ^= self.hash_table[captured_piece_index * 64 + captured.pos.y * 8 + captured.pos.x];
 
             self.board[captured.pos.x][captured.pos.y] = -1;
+
+            if captured.piece_type == PieceType::Rook &&
+                (captured.pos.x == 0 || captured.pos.x == 7) &&
+                (captured.pos.y == if captured.color == PieceColor::White { 7 } else { 0 }) {
+                self.reset_rook_castling(captured.pos, captured.color);
+            }
         }
 
         let piece = self.pieces.get_mut(&piece_index).unwrap();
@@ -658,34 +661,11 @@ impl Board {
 
         piece.pos = Position { x: m.to.x, y: m.to.y };
 
-        self.check_control(piece_index);
-
-        let from_bb = pos.to_bitboard();
-        let to_bb = m.to.to_bitboard();
-
-        let from_indices: Vec<usize> = if let Some(entries) = self.control_bitboards.control_entries.get(&from_bb) {
-            entries.iter().map(|e| e.index).collect()
-        } else {
-            Vec::new()
-        };
-
-        for &index in &from_indices {
-            self.check_control(index);
-        }
-
-        let to_indices: Vec<usize> = if let Some(entries) = self.control_bitboards.control_entries.get(&to_bb) {
-            entries.iter().map(|e| e.index).collect()
-        } else {
-            Vec::new()
-        };
-
-        for &index in &to_indices {
-            self.check_control(index);
-        }
-
         if m.move_type.contains(&MoveType::Promotion) && m.promote_to.is_some() {
             self.promote_to(piece_index, m.promote_to.unwrap());
         }
+
+        self.check_control_all();
 
         if m.piece_type == PieceType::King && m.move_type.contains(&MoveType::Castling) && m.with.is_some() {
             let rook = m.with.clone().unwrap();
@@ -710,67 +690,18 @@ impl Board {
             self.hash ^= self.hash_table[rook_hash_index * 64 + new_rook_pos.y * 8 + new_rook_pos.x];
             
             self.check_control(rook.index);
-
-            match m.piece_color {
-                PieceColor::White => {
-                    self.castling.white = (false, false);
-                    self.hash ^= self.hash_table[12 * 64];
-                    self.hash ^= self.hash_table[12 * 64 + 1];
-                },
-                PieceColor::Black => {
-                    self.castling.black = (false, false);
-                    self.hash ^= self.hash_table[12 * 64 + 2];
-                    self.hash ^= self.hash_table[12 * 64 + 3];
-                }
-            }
         }
 
         if m.piece_type == PieceType::King {
-            match m.piece_color {
-                PieceColor::White => {
-                    self.castling.white = (false, false);
-                    self.hash ^= self.hash_table[12 * 64];
-                    self.hash ^= self.hash_table[12 * 64 + 1];
-                },
-                PieceColor::Black => {
-                    self.castling.black = (false, false);
-                    self.hash ^= self.hash_table[12 * 64 + 2];
-                    self.hash ^= self.hash_table[12 * 64 + 3];
-                }
-            }
+            self.reset_castling(m.piece_color);
         }
 
         if m.piece_type == PieceType::Rook {
-            match m.piece_color {
-                PieceColor::White => {
-                    if pos.x == 0 && self.castling.white.1 {
-                        self.castling.white.1 = false;
-                        self.hash ^= self.hash_table[12 * 64 + 1];
-                    } else if pos.x == 7 && self.castling.white.0 {
-                        self.castling.white.0 = false;
-                        self.hash ^= self.hash_table[12 * 64];
-                    }
-                },
-                PieceColor::Black => {
-                    if pos.x == 0 && self.castling.black.1 {
-                        self.castling.black.1 = false;
-                        self.hash ^= self.hash_table[12 * 64 + 3];
-                    } else if pos.x == 7 && self.castling.black.0 {
-                        self.castling.black.0 = false;
-                        self.hash ^= self.hash_table[12 * 64 + 2];
-                    }
-                }
-            }
+            self.reset_rook_castling(pos, m.piece_color);
         }
 
         self.update_board(m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion));
         self.update_pins();
-
-        let mut affected = Vec::with_capacity(to_indices.len() + from_indices.len());
-        affected.extend(to_indices);
-        affected.extend(from_indices);
-
-        history.affected_pieces = affected;
 
         history
     }
@@ -794,7 +725,7 @@ impl Board {
 
         if let Some(captured) = &history.captured_piece {
             self.pieces.insert(captured.index, captured.clone());
-            self.board[m.to.x][m.to.y] = captured.index as isize;
+            self.board[captured.pos.x][captured.pos.y] = captured.index as isize;
         }
 
         if m.move_type.contains(&MoveType::Castling) && m.with.is_some() {
@@ -831,9 +762,8 @@ impl Board {
 
         self.check_control_all();
 
-        self.check.clear();
-        self.check.insert(PieceColor::White, history.white_check.clone());
-        self.check.insert(PieceColor::Black, history.black_check.clone());
+        self.white_check = history.white_check.clone();
+        self.black_check = history.black_check.clone();
 
         self.update_pins();
     }
@@ -908,6 +838,14 @@ impl Board {
         }
     }
 
+    pub fn get_check(&self, color: PieceColor) -> &CheckInfo {
+        if color == PieceColor::White {
+            &self.white_check
+        } else {
+            &self.black_check
+        }
+    }
+
     pub fn check_control(&mut self, piece_index: usize) {
         if !self.pieces.contains_key(&piece_index) {
             self.clear_control(piece_index);
@@ -935,13 +873,17 @@ impl Board {
                 count += 1;
             }
 
-            if king_pos == control.pos {
+            if king_pos == control.pos && control.threat != ControlThreat::PotentialMove {
                 let color = piece.color.opposite();
-                let check_info = self.check.get_mut(&color).unwrap();
+                let check_info = if color == PieceColor::White {
+                    &mut self.white_check
+                } else {
+                    &mut self.black_check
+                };
                 if check_info.checked != 0 && check_info.checked != control.pos.to_bitboard() {
                     check_info.double_checked |= control.pos.to_bitboard();
                 } else {
-                    if piece._directional {
+                    if piece.piece_type.is_directional() {
                         let filtered = controlled_squares.iter()
                             .filter(|c| c.direction.unwrap() == control.direction.unwrap() && 
                                 c.direction.unwrap().in_direction(piece.pos, c.pos) && 
@@ -1016,12 +958,12 @@ impl Board {
 
         self.hash ^= self.hash_table[piece.to_piece_index() * 64 + piece.pos.y * 8 + piece.pos.x];
 
-        self.check_control(piece_index);
-
         let piece = self.pieces.get(&piece_index).unwrap().clone();
         
         self.bb_and_rev_pos((PieceType::Pawn, piece.color), piece.pos);
         self.bb_or_pos(piece.get_base(), piece.pos);
+
+        self.check_control(piece_index);
     }
 
     pub fn get_king_pos(&self, color: PieceColor) -> Position {
@@ -1041,8 +983,8 @@ impl Board {
     }
 
     pub fn get_result(&mut self) -> ResultType {
-        let check = self.check.get(&self.turn).expect("Expected check information for both colors").clone();
-        let king_index = self.get_king(self.turn).expect("Expected both kings").index;
+        let check = self.get_check(self.turn);
+        let king_index = self.get_king(self.turn).expect(&format!("Expected both kings\n{:?}\n{:?}", self, self.black_check)).index;
         if (check.double_checked != 0u64 || (check.checked != 0u64 && self.get_block_moves(self.turn).is_empty())) && self.get_legal_moves(king_index).is_empty() {
             match self.turn {
                 PieceColor::White => ResultType::BlackCheckmate,
@@ -1104,21 +1046,18 @@ impl Board {
 
         let mut result = Vec::with_capacity(MOVE_PREALLOC);
 
-        if let Some(info) = self.check.get(&color) {
-            if info.double_checked != 0u64 {
-                if let Some(king) = self.get_king(color) {
-                    result = self.get_legal_moves(king.index);
-                }
-            } else if info.checked != 0u64 {
-                if let Some(king) = self.get_king(color) {
-                    result = self.get_legal_moves(king.index);
+        let info = self.get_check(color);
+        if info.double_checked != 0u64 {
+            if let Some(king) = self.get_king(color) {
+                result = self.get_legal_moves(king.index);
+            }
+        } else if info.checked != 0u64 {
+            if let Some(king) = self.get_king(color) {
+                result = self.get_legal_moves(king.index);
 
-                    let block_moves = self.get_block_moves(color);
-                    result.reserve(block_moves.len());
-                    result.extend(block_moves)
-                }
-            } else {
-                self.collect_all_legal_moves(color, &mut result);
+                let block_moves = self.get_block_moves(color);
+                result.reserve(block_moves.len());
+                result.extend(block_moves)
             }
         } else {
             self.collect_all_legal_moves(color, &mut result);
@@ -1130,7 +1069,7 @@ impl Board {
     }
 
     pub fn get_block_moves(&self, color: PieceColor) -> Vec<Move> {
-        let block_positions = self.check.get(&color).expect("CheckInfo expected").block_positions.clone().unwrap_or(Vec::with_capacity(0));
+        let block_positions = self.get_check(color).block_positions.clone().unwrap_or(Vec::with_capacity(0));
         let mut moves = vec![];
         for pos in block_positions {
             let has_enemy_piece = if let Some(piece) = self.get_piece_at(pos.y, pos.x) {
@@ -1138,13 +1077,34 @@ impl Board {
             } else {
                 false
             };
-            let control_at = self.get_control_at(pos.y, pos.x, Some(color), false);
+            let is_en_passant = if let Some(target) = self.target_square {
+                if let Some(piece) = self.get_piece_at(pos.y, pos.x) {
+                    piece.piece_type == PieceType::Pawn && target == pos.shift(Vector { x: 0, y: if piece.color == PieceColor::White { 1 } else { -1 } })
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            let mut en_passant_positions = 0u64;
+
+            let mut control_at = self.get_control_at(pos.y, pos.x, Some(color), false);
+            if is_en_passant {
+                let target = self.target_square.unwrap();
+                let control_at_target = self.get_control_at(target.y, target.x, Some(color), true);
+                let control_en_passant = control_at_target.iter()
+                    .filter(|c| c.origin.piece_type == PieceType::Pawn);
+                control_at.extend(control_en_passant.cloned().collect::<Vec<ControlTableEntry>>());
+                for control in &control_at_target {
+                    en_passant_positions |= control.origin.pos.to_bitboard();
+                }
+            }
             let control = control_at.iter()
                 .filter(|c: &&ControlTableEntry| !c.obscured && 
                     !c.is_king && 
-                    ((c.threat == ControlThreat::Threatning && has_enemy_piece) || c.threat.is_move()) &&
-                    if let Some(piece) = self.pieces.get(&c.index) {
-                        let piece_pos = piece.pos;
+                    ((c.threat == ControlThreat::Threatning && (has_enemy_piece || is_en_passant)) || c.threat.is_move()) &&
+                    {
+                        let piece_pos = c.origin.pos;
                         let pin_dir = self.is_pinned(piece_pos.y, piece_pos.x);
 
                         if let Some(pin) = pin_dir {
@@ -1160,11 +1120,9 @@ impl Board {
                         } else {
                             true
                         }
-                    } else {
-                        false
                     }
                 );
-            moves.extend(control.map(|c| c.to_move(self, pos)))
+            moves.extend(control.map(|c| c.to_move(self, pos, is_en_passant && (en_passant_positions & c.origin.pos.to_bitboard() != 0))))
         }
         moves
     }
@@ -1216,7 +1174,7 @@ impl Board {
             if let Some(color) = color {
                 entries.iter().filter(|c| c.color == color && if attacks { c.threat.is_attack() } else { true }).cloned().collect()
             } else {
-                entries.iter().filter(|c| if attacks { c.threat.is_attack() } else { c.threat.is_move() }).cloned().collect()
+                entries.iter().filter(|c| if attacks { c.threat.is_attack() } else { true }).cloned().collect()
             }
         } else {
             Vec::new()
@@ -1259,7 +1217,7 @@ impl Board {
         self.pin_table = vec![vec![vec![]; 8]; 8];
 
         for (&index, piece) in &self.pieces {
-            if matches!(piece.piece_type, PieceType::Bishop | PieceType::Rook | PieceType::Queen) {
+            if piece.piece_type.is_directional() {
                 let pins = self.get_pins(index);
                 for pin in pins {
                     self.pin_table[pin.position.y][pin.position.x].push(pin);
