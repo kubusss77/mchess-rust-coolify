@@ -3,7 +3,7 @@ use std::{io::{self, Write}, path::Path};
 use crate::{board::Board, engine::{Engine, EngineType}, moves::{Move, MoveType}, piece::{PieceColor, PieceType}};
 
 pub struct UciProtocol {
-    engine: Engine,
+    pub engine: Engine,
     board: Board,
     engine_type: EngineType,
     enable_book: bool,
@@ -19,6 +19,28 @@ impl UciProtocol {
             enable_book: false,
             move_history: vec![]
         }
+    }
+
+    pub fn run_command(&mut self, command: &str) -> io::Result<()> {
+        match command {
+            "uci" => self.identify(),
+            "isready" => println!("readyok"),
+            cmd if cmd.starts_with("position") => self.handle_position(cmd, &mut io::stdout())?,
+            cmd if cmd.starts_with("go") => self.handle_go(cmd, &mut io::stdout())?,
+            cmd if cmd.starts_with("setoption") => self.set_option(cmd, &mut io::stdout())?,
+            "ucinewgame" => {
+                self.board = Board::startpos();
+                self.engine.switch_to(self.engine_type);
+                self.engine.set_book_enabled(self.enable_book);
+            },
+            "stop" => {
+                self.engine.stop();
+            },
+            "quit" => {},
+            a => println!("info string Unknown option {}", a)
+        }
+
+        Ok(())
     }
 
     pub fn run(&mut self) -> io::Result<()> {
@@ -38,22 +60,10 @@ impl UciProtocol {
             stdin.read_line(&mut input)?;
             let command = input.trim();
 
-            match command {
-                "quit" => break,
-                "uci" => self.identify(),
-                "isready" => println!("readyok"),
-                cmd if cmd.starts_with("position") => self.handle_position(cmd),
-                cmd if cmd.starts_with("go") => self.handle_go(cmd),
-                cmd if cmd.starts_with("setoption") => self.set_option(cmd),
-                "ucinewgame" => {
-                    self.board = Board::startpos();
-                    self.engine.switch_to(self.engine_type);
-                    self.engine.set_book_enabled(self.enable_book);
-                },
-                "stop" => {
-                    self.engine.stop();
-                },
-                a => println!("info string Unknown option {}", a)
+            if command == "quit" {
+                break;
+            } else {
+                self.run_command(command)?;
             }
 
             io::stdout().flush().unwrap();
@@ -70,13 +80,13 @@ impl UciProtocol {
         println!("uciok");
     }
 
-    fn set_option(&mut self, command: &str) {
+    pub fn set_option<T: Write>(&mut self, command: &str, writer: &mut T) -> io::Result<()> {
         let parts: Vec<&str> = command.split_whitespace().collect();
         let name_index = parts.iter().position(|&p| p.to_lowercase() == "name");
         let value_index = parts.iter().position(|&p| p.to_lowercase() == "value");
 
         if name_index.is_none() {
-            return;
+            return Ok(());
         }
 
         let name_start = name_index.unwrap() + 1;
@@ -97,40 +107,42 @@ impl UciProtocol {
             "enginetype" | "engine type" => {
                 match value.to_lowercase().as_str() {
                     "minimax" | "alphabeta" | "default" => {
-                        println!("info string Setting engine type to Minimax");
+                        writeln!(writer, "info string Setting engine type to Minimax")?;
                         self.engine_type = EngineType::Minimax;
                         self.engine.switch_to(self.engine_type);
                         self.engine.set_book_enabled(self.enable_book);
                     },
                     "mcts" => {
-                        println!("info string Setting engine type to MCTS");
+                        writeln!(writer, "info string Setting engine type to MCTS")?;
                         self.engine_type = EngineType::MCTS;
                         self.engine.switch_to(self.engine_type);
                         self.engine.set_book_enabled(self.enable_book);
                     },
-                    a => println!("info string Unknown engine type: {}, current: {:?}", a, self.engine_type)
+                    a => writeln!(writer, "info string Unknown engine type: {}, current: {:?}", a, self.engine_type)?
                 }
             },
             "enablebook" | "enable book" => {
                 match value.to_lowercase().as_str() {
                     "true" => {
-                        println!("info string Setting enable book to true");
+                        writeln!(writer, "info string Setting enable book to true")?;
                         self.enable_book = true;
                         self.engine.set_book_enabled(true);
                     },
                     "false" => {
-                        println!("info string Setting enable book to false");
+                        writeln!(writer, "info string Setting enable book to false")?;
                         self.enable_book = false;
                         self.engine.set_book_enabled(false);
                     },
-                    a => println!("info string Unknown enable book option: {}, current: {:?}", a, self.engine_type)
+                    a => writeln!(writer, "info string Unknown enable book option: {}, current: {:?}", a, self.engine_type)?
                 }
             },
-            a => println!("info string Unknown option: {}", a)
+            a => writeln!(writer, "info string Unknown option: {}", a)?
         }
+
+        Ok(())
     }
 
-    fn handle_position(&mut self, command: &str) {
+    pub fn handle_position<T: Write>(&mut self, command: &str, writer: &mut T) -> io::Result<()> {
         let parts: Vec<&str> = command.split_whitespace().collect();
         let pos_type = parts.get(1).unwrap_or(&"");
 
@@ -144,7 +156,7 @@ impl UciProtocol {
                     self.move_history.clear();
                     for i in (moves_index + 1)..parts.len() {
                         let uci_move = parts[i];
-                        println!("info String {uci_move}");
+                        writeln!(writer, "info String {uci_move}")?;
                         self.move_uci(uci_move.trim());
                     }
                 }
@@ -165,9 +177,11 @@ impl UciProtocol {
             },
             _ => {}
         }
+
+        Ok(())
     }
 
-    fn handle_go(&mut self, command: &str) {
+    pub fn handle_go<T: Write>(&mut self, command: &str, writer: &mut T) -> io::Result<()> {
         let parts: Vec<&str> = command.split_whitespace().collect();
         let mut depth = 5;
         let mut time_limit = 5000;
@@ -231,12 +245,13 @@ impl UciProtocol {
         let result = self.engine.iterative_deepening(&mut self.board, depth, time_limit, &self.move_history);
 
         if let Some(best_move) = result.as_ref() {
-            println!("info string turn {:?} move clr {:?}", self.board.turn, best_move.piece_color);
-            println!("bestmove {}", self.move_to_uci(best_move));
+            writeln!(writer, "info string turn {:?} move clr {:?}", self.board.turn, best_move.piece_color)?;
+            writeln!(writer, "bestmove {}", self.move_to_uci(best_move))?;
         } else {
-            println!("bestmove 0000");
+            writeln!(writer, "bestmove 0000")?;
         }
 
+        Ok(())
     }
 
     fn move_uci(&mut self, uci_move: &str) {

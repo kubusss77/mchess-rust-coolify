@@ -6,12 +6,12 @@ use std::path::Path;
 use crate::board::Board;
 use crate::moves::Move;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OpeningBook {
     root: BookNode,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BookNode {
     moves: HashMap<String, usize>,
     children: HashMap<String, BookNode>,
