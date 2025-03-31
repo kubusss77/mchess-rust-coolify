@@ -22,7 +22,7 @@ fn control_bitboards_match(a: &ControlBitboards, b: &ControlBitboards) -> bool {
 
 #[test]
 fn test_move_unmove_control_consistency() {
-    let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    let mut board = Board::startpos();
     
     let initial_control = board.control_bitboards.clone();
     
@@ -104,7 +104,7 @@ fn test_control_validation_by_recalculation() {
 
 #[test]
 fn test_multiple_moves_control_consistency() {
-    let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    let mut board = Board::startpos();
     
     let initial_control = board.control_bitboards.clone();
     

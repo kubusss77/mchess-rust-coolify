@@ -1,7 +1,7 @@
 use std::fmt;
 use crate::board::Board;
 use crate::evaluation::evaluate_position;
-use crate::r#const::MVV_LVA_VALUE;
+use crate::r#const::{MVV_LVA_VALUES, PIECE_VALUES};
 use crate::piece::{PieceType, PieceColor, Piece};
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
@@ -153,19 +153,6 @@ pub struct Move {
 
 impl fmt::Debug for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // let piece_char = match self.piece_type {
-        //     PieceType::Pawn => "",
-        //     PieceType::Knight => "N",
-        //     PieceType::Bishop => "B",
-        //     PieceType::Rook => "R",
-        //     PieceType::Queen => "Q",
-        //     PieceType::King => "K"
-        // };
-
-        // let file_char = "abcdefgh".chars().nth(self.to.x).unwrap();
-
-        // write!(f, "{}{}{}", piece_char, file_char, 8 - self.to.y);
-
         let promotion_char = if let Some(piece_type) = self.promote_to {
             match piece_type {
                 PieceType::Knight => "n",
@@ -198,22 +185,20 @@ impl Move {
         if !self.move_type.contains(&MoveType::Capture) || self.captured.is_none() {
             return 0.0;
         }
+        let victim = self.captured.as_ref().unwrap().piece_type.index();
+        let aggressor = self.piece_type.index();
+        
+        let ordering_value = MVV_LVA_VALUES[victim][aggressor] as f64;
+        
+        let victim_value = PIECE_VALUES[victim];
+        let aggressor_value = PIECE_VALUES[aggressor];
+        
+        if aggressor_value > victim_value {
+            let trade_penalty = (aggressor_value - victim_value) * 2.0;
+            return ordering_value - trade_penalty;
+        }
 
-        let victim = self.captured.as_ref().unwrap().piece_type;
-        let aggressor = self.piece_type;
-
-        let piece_value = |p: PieceType| -> f64 {
-            match p {
-                PieceType::Pawn => 100.0,
-                PieceType::Knight => 300.0,
-                PieceType::Bishop => 300.0,
-                PieceType::Rook => 500.0,
-                PieceType::Queen => 900.0,
-                PieceType::King => 10000.0
-            }
-        };
-
-        (piece_value(victim) - piece_value(aggressor)/10.0) * MVV_LVA_VALUE
+        ordering_value
     }
 
     pub fn ps_table(&self, board: &Board) -> f64 {
@@ -223,6 +208,88 @@ impl Move {
         let y_index = if self.piece_color == PieceColor::White { y } else { 7 - y };
 
         evaluate_position(board, self.piece_type, x, y_index)
+    }
+
+    pub fn to_san(&self, board: &Board) -> String {
+        if self.move_type.contains(&MoveType::Castling) {
+            if self.to.x == 6 {
+                return "O-O".to_string();
+            } else {
+                return "O-O-O".to_string();
+            }
+        }
+
+        let mut san = String::new();
+
+        if self.piece_type != PieceType::Pawn {
+            san.push(match self.piece_type {
+                PieceType::King => 'K',
+                PieceType::Queen => 'Q',
+                PieceType::Rook => 'R',
+                PieceType::Bishop => 'B',
+                PieceType::Knight => 'N',
+                _ => unreachable!()
+            });
+            
+            let mut same_pieces = Vec::new();
+            
+            for (i, piece) in board.pieces.iter() {
+                if piece.piece_type == self.piece_type && 
+                   piece.color == self.piece_color && 
+                   *i != self.piece_index {
+                    
+                    let moves = board.get_legal_moves(*i);
+                    if moves.iter().any(|m| m.to == self.to) {
+                        same_pieces.push(i);
+                    }
+                }
+            }
+        
+            if !same_pieces.is_empty() {
+                let from_file = self.from.x;
+                let from_rank = self.from.y;
+                
+                let need_file = same_pieces.iter().any(|&index| {
+                    board.pieces[&index].pos.x == from_file
+                });
+                
+                let need_rank = same_pieces.iter().any(|&index| {
+                    board.pieces[&index].pos.y == from_rank
+                });
+                
+                if !need_rank {
+                    san.push("abcdefgh".chars().nth(from_file).unwrap());
+                } else if !need_file {
+                    san.push(char::from_digit(8 - from_rank as u32, 10).unwrap());
+                } else {
+                    san.push("abcdefgh".chars().nth(from_file).unwrap());
+                    san.push(char::from_digit(8 - from_rank as u32, 10).unwrap());
+                }
+            }
+        }
+
+        if self.move_type.contains(&MoveType::Capture) {
+            if self.piece_type == PieceType::Pawn {
+                san.push("abcdefgh".chars().nth(self.from.x).unwrap());
+            }
+            san.push('x');
+        }
+
+        san.push("abcdefgh".chars().nth(self.to.x).unwrap());
+        san.push(char::from_digit(8 - self.to.y as u32, 10).unwrap());
+
+        if self.move_type.contains(&MoveType::Promotion) && self.promote_to.is_some() {
+            san.push('=');
+            san.push(match self.promote_to.unwrap() {
+                PieceType::Queen => 'Q',
+                PieceType::Rook => 'R',
+                PieceType::Bishop => 'B',
+                PieceType::Knight => 'N',
+                _ => unreachable!()
+            });
+        }
+
+        san
     }
 }
 

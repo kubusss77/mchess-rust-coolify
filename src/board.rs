@@ -375,6 +375,10 @@ impl Board {
         board
     }
 
+    pub fn startpos() -> Board {
+        Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+    }
+
     pub fn get_piece_at_bitboard(&self, square: u64) -> Option<BasePiece> {
         if square & self.bb.white_pawns != 0 { return Some((PieceType::Pawn, PieceColor::White)); }
         if square & self.bb.white_knights != 0 { return Some((PieceType::Knight, PieceColor::White)); }
@@ -580,7 +584,6 @@ impl Board {
     }
 
     pub fn make_move(&mut self, m: &Move) -> MoveInfo {
-        if !self.pieces.contains_key(&m.piece_index) { println!("{:?} {}\n{:?}\n{:?}", m, m.piece_index, self, self.pieces); }
         let history = MoveInfo {
             hash: self.hash,
             captured_piece: m.captured.clone(),
@@ -1012,7 +1015,7 @@ impl Board {
         }
     }
 
-    fn collect_all_legal_moves(&self, color: PieceColor, moves: &mut Vec<Move>) {
+    fn collect_all_legal_moves(&self, color: PieceColor, moves: &mut Vec<Move>, quiescence: bool) {
         if moves.is_empty() {
             moves.reserve(MOVE_PREALLOC);
         }
@@ -1029,13 +1032,19 @@ impl Board {
 
         for &index in &piece_indices {
             let piece_moves = self.get_legal_moves(index);
-            if !piece_moves.is_empty() {
-                moves.extend(piece_moves);
+            if quiescence {
+                if !piece_moves.is_empty() {
+                    moves.extend(piece_moves.iter().filter(|m| m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion)).cloned());
+                }
+            } else {
+                if !piece_moves.is_empty() {
+                    moves.extend(piece_moves);
+                }
             }
         }
     }
 
-    pub fn get_total_legal_moves(&mut self, _color: Option<PieceColor>) -> Vec<Move> {
+    pub fn get_total_legal_moves_quiescence(&mut self, _color: Option<PieceColor>, quiescence: bool) -> Vec<Move> {
         let color = _color.unwrap_or(self.turn);
 
         if let Some(cached) = self.total_moves_cache.get(&color) {
@@ -1060,12 +1069,16 @@ impl Board {
                 result.extend(block_moves)
             }
         } else {
-            self.collect_all_legal_moves(color, &mut result);
+            self.collect_all_legal_moves(color, &mut result, quiescence);
         }
 
         self.total_moves_cache.insert(color, result.clone());
 
         result
+    }
+
+    pub fn get_total_legal_moves(&mut self, _color: Option<PieceColor>) -> Vec<Move> {
+        self.get_total_legal_moves_quiescence(_color, false)
     }
 
     pub fn get_block_moves(&self, color: PieceColor) -> Vec<Move> {

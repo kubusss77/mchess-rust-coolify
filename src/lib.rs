@@ -8,3 +8,4 @@ pub mod search;
 pub mod protocol;
 pub mod mcts;
 pub mod engine;
+pub mod book;

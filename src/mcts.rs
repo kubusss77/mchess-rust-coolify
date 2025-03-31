@@ -52,7 +52,7 @@ impl Mcts {
         }
     }
 
-    pub fn search(&mut self, board: &mut Board, time_limit_ms: u64) -> Move {
+    pub fn search(&mut self, board: &mut Board, time_limit_ms: u64) -> Option<Move> {
         self.time_limit = time_limit_ms;
         self.nodes_visited = 0;
         let start_time = Instant::now();
@@ -74,10 +74,10 @@ impl Mcts {
             .max_by_key(|child| child.visits)
             .expect("No moves found");
 
-        println!("MCTS completed {} iterations in {:?}", iterations, start_time.elapsed());
-        println!("Nodes visited: {}", self.nodes_visited);
+        println!("info string MCTS completed {} iterations in {:?}", iterations, start_time.elapsed());
+        println!("info string Nodes visited: {}", self.nodes_visited);
         
-        best_child.m.clone().unwrap()
+        best_child.m.clone()
     }
 
     fn select_and_expand(&mut self, node: &mut Node, board: &mut Board) -> Vec<usize> {
@@ -219,9 +219,9 @@ impl Mcts {
             self.nodes_visited = 0;
             let m = self.search(board, base_time);
 
-            best_move = Some(m);
+            best_move = m;
 
-            println!("MCTS iteration {}/{}: time used {}ms, total {}ms", 
+            println!("info string MCTS iteration {}/{}: time used {}ms, total {}ms", 
                 i, time_chunks, base_time, total_time_used);
 
             if total_time_used > max_time_ms * 9/10 {

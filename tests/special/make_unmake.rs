@@ -2,7 +2,7 @@ use mchess::board::Board;
 
 #[test]
 fn test_make_unmake_consistency() {
-    let original = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    let original = Board::startpos();
     let mut board = original.clone();
     
     let moves = board.get_total_legal_moves(None);

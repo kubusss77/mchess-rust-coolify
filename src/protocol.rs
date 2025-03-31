@@ -1,19 +1,23 @@
-use std::io::{self, Write};
+use std::{io::{self, Write}, path::Path};
 
 use crate::{board::Board, engine::{Engine, EngineType}, moves::{Move, MoveType}, piece::{PieceColor, PieceType}};
 
 pub struct UciProtocol {
     engine: Engine,
     board: Board,
-    engine_type: EngineType
+    engine_type: EngineType,
+    enable_book: bool,
+    move_history: Vec<String>
 }
 
 impl UciProtocol {
     pub fn new() -> Self {
         UciProtocol { 
-            engine: Engine::new(EngineType::Minimax), 
-            board: Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
-            engine_type: EngineType::Minimax // default
+            engine: Engine::new(EngineType::Minimax, false), 
+            board: Board::startpos(),
+            engine_type: EngineType::Minimax, // default
+            enable_book: false,
+            move_history: vec![]
         }
     }
 
@@ -22,6 +26,12 @@ impl UciProtocol {
 
         let stdin = io::stdin();
         let mut input = String::new();
+
+        self.engine.load_book(Path::new("book.pgn"))?;
+
+        if let Some(book) = self.engine.book.as_ref() {
+            book.print_statistics();
+        }
 
         loop {
             input.clear();
@@ -36,13 +46,14 @@ impl UciProtocol {
                 cmd if cmd.starts_with("go") => self.handle_go(cmd),
                 cmd if cmd.starts_with("setoption") => self.set_option(cmd),
                 "ucinewgame" => {
-                    self.board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                    self.engine = Engine::new(self.engine_type);
+                    self.board = Board::startpos();
+                    self.engine.switch_to(self.engine_type);
+                    self.engine.set_book_enabled(self.enable_book);
                 },
                 "stop" => {
                     self.engine.stop();
                 },
-                _ => {}
+                a => println!("info string Unknown option {}", a)
             }
 
             io::stdout().flush().unwrap();
@@ -55,6 +66,7 @@ impl UciProtocol {
         println!("id name mchess");
         println!("id author ggod");
         println!("option name EngineType type combo default Minimax var Minimax var MCTS");
+        println!("option name EnableBook type check default false");
         println!("uciok");
     }
 
@@ -87,14 +99,31 @@ impl UciProtocol {
                     "minimax" | "alphabeta" | "default" => {
                         println!("info string Setting engine type to Minimax");
                         self.engine_type = EngineType::Minimax;
-                        self.engine = Engine::new(self.engine_type);
+                        self.engine.switch_to(self.engine_type);
+                        self.engine.set_book_enabled(self.enable_book);
                     },
                     "mcts" => {
                         println!("info string Setting engine type to MCTS");
                         self.engine_type = EngineType::MCTS;
-                        self.engine = Engine::new(self.engine_type);
+                        self.engine.switch_to(self.engine_type);
+                        self.engine.set_book_enabled(self.enable_book);
                     },
                     a => println!("info string Unknown engine type: {}, current: {:?}", a, self.engine_type)
+                }
+            },
+            "enablebook" | "enable book" => {
+                match value.to_lowercase().as_str() {
+                    "true" => {
+                        println!("info string Setting enable book to true");
+                        self.enable_book = true;
+                        self.engine.set_book_enabled(true);
+                    },
+                    "false" => {
+                        println!("info string Setting enable book to false");
+                        self.enable_book = false;
+                        self.engine.set_book_enabled(false);
+                    },
+                    a => println!("info string Unknown enable book option: {}, current: {:?}", a, self.engine_type)
                 }
             },
             a => println!("info string Unknown option: {}", a)
@@ -107,10 +136,12 @@ impl UciProtocol {
 
         match *pos_type {
             "startpos" => {
-                self.board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                self.engine = Engine::new(self.engine_type);
+                self.board = Board::startpos();
+                self.engine.switch_to(self.engine_type);
+                self.engine.set_book_enabled(self.enable_book);
 
                 if let Some(moves_index) = parts.iter().position(|&p| p == "moves") {
+                    self.move_history.clear();
                     for i in (moves_index + 1)..parts.len() {
                         let uci_move = parts[i];
                         println!("info String {uci_move}");
@@ -124,6 +155,7 @@ impl UciProtocol {
                     self.board = Board::from_fen(&fen);
 
                     if let Some(moves_index) = parts.iter().position(|&p| p == "moves") {
+                        self.move_history.clear();
                         for i in (moves_index + 1)..parts.len() {
                             let uci_move = parts[i];
                             self.move_uci(uci_move.trim());
@@ -133,8 +165,6 @@ impl UciProtocol {
             },
             _ => {}
         }
-
-        println!("{:?}", self.board);
     }
 
     fn handle_go(&mut self, command: &str) {
@@ -198,11 +228,10 @@ impl UciProtocol {
             }
         }
 
-        let result = self.engine.iterative_deepening(&mut self.board, depth, time_limit);
+        let result = self.engine.iterative_deepening(&mut self.board, depth, time_limit, &self.move_history);
 
         if let Some(best_move) = result.as_ref() {
             println!("info string turn {:?} move clr {:?}", self.board.turn, best_move.piece_color);
-            println!("{:?}", self.board);
             println!("bestmove {}", self.move_to_uci(best_move));
         } else {
             println!("bestmove 0000");
@@ -231,11 +260,13 @@ impl UciProtocol {
                     println!("info string > 4 {uci_move}");
                     if m.move_type.contains(&MoveType::Promotion) {
                         self.board.make_move(&m);
+                        self.move_history.push(m.to_san(&self.board));
                         break;
                     }
                 } else {
                     println!("info string turn bef {:?}", self.board.turn);
                     self.board.make_move(&m);
+                    self.move_history.push(m.to_san(&self.board));
                     println!("info string turn aft {:?}", self.board.turn);
                     break;
                 }

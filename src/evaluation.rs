@@ -235,6 +235,12 @@ pub fn evaluate_king_safety(board: &Board, color: PieceColor) -> f64 {
 
     let shield_value = (positions.count_ones() as f64) * PAWN_SHIELD_VALUE;
 
+    let breathing_penalty = if (mask & pawns).count_ones() >= 3 {
+        BREATHING_PENALTY
+    } else {
+        0.0
+    };
+
     // pawn storm
     let enemy_pawns = if color == PieceColor::White {
         board.bb.black_pawns
@@ -288,7 +294,7 @@ pub fn evaluate_king_safety(board: &Board, color: PieceColor) -> f64 {
     let position_value = (64.0 - 0.5 * shift.powf(1.15)).log10() / log_scale;
     let scaled_position_value = (position_value * 5.0) - 3.5;
 
-    let safety_score = shield_value + scaled_position_value - storm_penalty - mobility_penalty - attack_penalty;
+    let safety_score = shield_value + scaled_position_value - breathing_penalty - storm_penalty - mobility_penalty - attack_penalty;
 
     let attack_potential = if king.color == PieceColor::White {
         let queens = (board.bb.black_queens.count_ones() as f64) * 3.0;
@@ -321,8 +327,8 @@ pub fn evaluate_king_safety(board: &Board, color: PieceColor) -> f64 {
 }
 
 pub fn evaluate_kings_safety(board: &Board) -> EvaluationResult {
-    let white = evaluate_king_safety(board, PieceColor::White);
-    let black = evaluate_king_safety(board, PieceColor::Black);
+    let white = evaluate_king_safety(board, PieceColor::White) * KING_SAFETY_FACTOR;
+    let black = evaluate_king_safety(board, PieceColor::Black) * KING_SAFETY_FACTOR;
 
     EvaluationResult { 
         white, 

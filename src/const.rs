@@ -11,6 +11,8 @@ pub const PAWN_SHIELD_VALUE: f64 = 10.0;
 pub const PAWN_STORM_PENALTY: f64 = 1.5;
 pub const VIRTUAL_MOBILITY_PENALTY: f64 = 1.2;
 pub const ATTACK_PENALTY: f64 = 1.2;
+pub const KING_SAFETY_FACTOR: f64 = 0.01;
+pub const BREATHING_PENALTY: f64 = 1.0;
 
 pub const PAWN_DEVELOPMENT_BONUS: f64 = 150.0;
 pub const PAWN_ISOLATION_PENALTY: f64 = 0.2;
@@ -27,12 +29,37 @@ pub const MAX_PHASE: i32 = 24;
 
 pub const MCTS_MAX_PLIES: usize = 100;
 
+pub const PAWN_VALUE: f64 = 100.0;
+pub const KNIGHT_VALUE: f64 = 320.0;
+pub const BISHOP_VALUE: f64 = 330.0;
+pub const ROOK_VALUE: f64 = 500.0;
+pub const QUEEN_VALUE: f64 = 900.0;
+pub const KING_VALUE: f64 = 20000.0;
+
+pub const PIECE_VALUES: [f64; 6] = [
+    PAWN_VALUE,
+    KNIGHT_VALUE,
+    BISHOP_VALUE,
+    ROOK_VALUE,
+    QUEEN_VALUE,
+    KING_VALUE
+];
+
+pub const MVV_LVA_VALUES: [[u8; 6]; 6] = [
+    [15, 14, 13, 12, 11, 10],
+    [25, 24, 23, 22, 21, 20],
+    [35, 34, 33, 32, 31, 30],
+    [45, 44, 43, 42, 41, 40],
+    [55, 54, 53, 52, 51, 50],
+    [ 0,  0,  0,  0,  0,  0]
+];
+
 pub const PAWN_TABLE: [[f64; 8]; 8] = [
     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
-    [1.0, 1.0, 2.0, 3.75, 3.75, 2.0, 1.0, 1.0],
-    [0.5, 0.5, 1.0, 3.25, 3.25, 1.0, 0.5, 0.5],
-    [0.0, 0.0, 0.0, 2.5, 2.5, 0.0, 0.0, 0.0],
+    [7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0],
+    [1.0, 2.0, 4.5, 6.0, 6.0, 4.5, 2.0, 1.0],
+    [0.5, 1.0, 3.0, 5.0, 5.0, 3.0, 1.0, 0.5],
+    [0.0, 0.0, 0.5, 3.0, 3.0, 0.5, 0.0, 0.0],
     [0.5, -0.5, -1.0, 0.0, 0.0, -1.0, -0.5, 0.5],
     [0.5, 1.0, 1.0, -2.0, -2.0, 1.0, 1.0, 0.5],
     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -46,7 +73,7 @@ pub const KNIGHT_TABLE: [[f64; 8]; 8] = [
     [-3.0, 0.0, 1.5, 2.0, 2.0, 1.5, 0.0, -3.0],
     [-3.0, 0.5, 1.0, 1.5, 1.5, 1.0, 0.5, -3.0],
     [-4.0, -2.0, 0.0, 0.5, 0.5, 0.0, -2.0, -4.0],
-    [-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0]
+    [-5.0, -3.5, -3.0, -3.0, -3.0, -3.0, -3.5, -5.0]
 ];
 
 pub const BISHOP_TABLE: [[f64; 8]; 8] = [

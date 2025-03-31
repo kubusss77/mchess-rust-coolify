@@ -26,6 +26,17 @@ impl PieceType {
     pub fn is_directional(&self) -> bool {
         matches!(self, PieceType::Bishop | PieceType::Rook | PieceType::Queen)
     }
+
+    pub fn index(&self) -> usize {
+        match self {
+            PieceType::Pawn => 0,
+            PieceType::Knight => 1,
+            PieceType::Bishop => 2,
+            PieceType::Rook => 3,
+            PieceType::Queen => 4,
+            PieceType::King => 5
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
@@ -55,25 +66,11 @@ pub struct Piece {
 
 impl Piece {
     pub fn to_piece_index(&self) -> usize {
-        return match self.piece_type {
-            PieceType::Pawn => 0,
-            PieceType::Knight => 1,
-            PieceType::Bishop => 2,
-            PieceType::Rook => 3,
-            PieceType::Queen => 4,
-            PieceType::King => 5
-        } + if self.color == PieceColor::White { 0 } else { 6 }
+        return self.piece_type.index() + if self.color == PieceColor::White { 0 } else { 6 }
     }
 
     pub fn piece_index(piece_type: PieceType, color: PieceColor) -> usize {
-        return match piece_type {
-            PieceType::Pawn => 0,
-            PieceType::Knight => 1,
-            PieceType::Bishop => 2,
-            PieceType::Rook => 3,
-            PieceType::Queen => 4,
-            PieceType::King => 5
-        } + if color == PieceColor::White { 0 } else { 6 }
+        return piece_type.index() + if color == PieceColor::White { 0 } else { 6 }
     }
 
     pub fn to_partial(&self) -> PartialPiece {

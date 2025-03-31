@@ -57,7 +57,7 @@ fn split_perft(board: &mut Board, depth: u32) -> u64 {
 
 #[test]
 fn test_perft() {
-    let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    let mut board = Board::startpos();
     
     let expected = [
         1,        // depth 0
@@ -76,7 +76,7 @@ fn test_perft() {
         assert_eq!(result, expected[depth], "Perft failed at depth {}", depth);
         println!("Perft depth {} = {} nodes in {:?}", depth, result, duration);
 
-        board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        board = Board::startpos();
     }
     
     // kiwipete
@@ -118,7 +118,7 @@ fn test_perft() {
 #[test]
 fn test_split_perft() {
     // startpos
-    let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    let mut board = Board::startpos();
     let start = board.hash;
 
     let result = split_perft(&mut board, 4);

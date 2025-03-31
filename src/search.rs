@@ -1,4 +1,4 @@
-use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, DEFAULT_MARGIN, KILLER_MOVE_VALUE, MAX_WINDOW_WIDTH, PROMOTION_VALUE, PV_MOVE};
+use crate::r#const::{CASTLING_VALUE, CHECK_VALUE, DEFAULT_MARGIN, KILLER_MOVE_VALUE, MAX_WINDOW_WIDTH, PAWN_DEVELOPMENT_BONUS, PROMOTION_VALUE, PV_MOVE};
 use crate::evaluation::{evaluate, EvaluationResult};
 use crate::board::{Board, ResultType};
 use crate::moves::{Move, MoveType};
@@ -7,12 +7,12 @@ use core::f64;
 use std::collections::HashMap;
 
 pub struct Minimax {
-    evaluation_cache: HashMap<i64, EvaluationResult>,
+    evaluation_cache: EvalCache,
     move_evaluation_cache: HashMap<usize, f64>,
-    transposition_table: HashMap<i64, Node>,
+    transposition_table: TranspositionTable,
     killer_moves: Vec<Vec<Option<Move>>>,
     pub nodes: u64,
-    is_stopping: bool
+    is_stopping: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -36,12 +36,80 @@ pub struct SearchResult {
     pub moves: Vec<Move>
 }
 
+pub struct TranspositionTable {
+    entries: Vec<Option<Node>>,
+    mask: usize
+}
+
+impl TranspositionTable {
+    pub fn new(size_mb: usize) -> Self {
+        let num_entries = (size_mb * 1024 * 1024) / std::mem::size_of::<Option<Node>>();
+        let size = num_entries.next_power_of_two();
+        TranspositionTable { 
+            entries: vec![None; size], 
+            mask: size - 1
+        }
+    }
+
+    pub fn store(&mut self, hash: i64, node: Node) {
+        let index = (hash as usize) & self.mask;
+        if let Some(entry) = &self.entries[index] {
+            if entry.depth <= node.depth {
+                self.entries[index] = Some(node);
+            }
+        } else {
+            self.entries[index] = Some(node);
+        }
+    }
+
+    pub fn get(&self, hash: i64) -> &Option<Node> {
+        let index = (hash as usize) & self.mask;
+        &self.entries[index]
+    }
+}
+
+pub struct EvalCache {
+    entries: Vec<(i64, EvaluationResult)>,  // (hash, result)
+    mask: usize
+}
+
+impl EvalCache {
+    pub fn new(size_mb: usize) -> Self {
+        let num_entries = (size_mb * 1024 * 1024) / std::mem::size_of::<(i64, EvaluationResult)>();
+        let size = num_entries.next_power_of_two();
+        EvalCache { 
+            entries: vec![(0, EvaluationResult::default()); size], 
+            mask: size - 1
+        }
+    }
+    
+    pub fn get(&self, hash: i64) -> Option<&EvaluationResult> {
+        let index = (hash as usize) & self.mask;
+        let (stored_hash, result) = &self.entries[index];
+        if *stored_hash == hash {
+            Some(result)
+        } else {
+            None
+        }
+    }
+    
+    pub fn store(&mut self, hash: i64, result: EvaluationResult) {
+        let index = (hash as usize) & self.mask;
+        self.entries[index] = (hash, result);
+    }
+
+    pub fn contains(&self, hash: i64) -> bool {
+        let index = (hash as usize) & self.mask;
+        self.entries[index].0 == hash
+    }
+}
+
 impl Minimax {
     pub fn new() -> Self {
         Minimax {
-            evaluation_cache: HashMap::new(),
+            evaluation_cache: EvalCache::new(64),
             move_evaluation_cache: HashMap::new(),
-            transposition_table: HashMap::new(),
+            transposition_table: TranspositionTable::new(64),
             killer_moves: vec![vec![None; 2]; 100],
             nodes: 0,
             is_stopping: false
@@ -56,11 +124,11 @@ impl Minimax {
             best_move
         };
 
-        self.transposition_table.insert(board.hash, node);
+        self.transposition_table.store(board.hash, node);
     }
 
     pub fn check_position(&self, board: &Board, depth: u8, alpha: f64, beta: f64) -> Option<(f64, Option<Move>)> {
-        if let Some(node) = self.transposition_table.get(&board.hash) {
+        if let Some(node) = self.transposition_table.get(board.hash) {
             if node.depth >= depth {
                 match node.node_type {
                     NodeType::PV => return Some((node.score, node.best_move.clone())),
@@ -201,9 +269,8 @@ impl Minimax {
         }
         self.nodes += 1;
         if board.get_result() != ResultType::None || depth == 0 {
-            let evaluation = self.evaluate(board);
             return SearchResult {
-                value: evaluation.to_value(),
+                value: self.quiescence(board, _alpha, _beta, maximizer, 8),
                 moves: vec![]
             }
         }
@@ -364,12 +431,70 @@ impl Minimax {
         }
     }
 
+    pub fn quiescence(&mut self, board: &mut Board, mut alpha: f64, mut beta: f64, maximizer: bool, depth: i8) -> f64 {
+        self.nodes += 1;
+
+        let stand_pat = self.evaluate(board).to_value();
+
+        if maximizer {
+            if stand_pat >= beta {
+                return beta;
+            }
+            if stand_pat > alpha {
+                alpha = stand_pat;
+            }
+
+            let captures = board.get_total_legal_moves_quiescence(None, true);
+            let sorted = self.sort(captures, board, 0);
+
+            for m in sorted {
+                let history = board.make_move(&m);
+                let score = self.quiescence(board, alpha, beta, false, depth - 1);
+                board.unmake_move(&m, &history);
+                
+                if score > alpha {
+                    alpha = score;
+                }
+                if alpha >= beta {
+                    break;
+                }
+            }
+
+            alpha
+        } else {
+            if stand_pat <= alpha {
+                return alpha;
+            }
+            if stand_pat < beta {
+                beta = stand_pat;
+            }
+
+            let captures = board.get_total_legal_moves_quiescence(None, true);
+            let sorted = self.sort(captures, board, 0);
+
+            for m in sorted {
+                let history = board.make_move(&m);
+                let score = self.quiescence(board, alpha, beta, true, depth - 1);
+                board.unmake_move(&m, &history);
+                
+                if score < beta {
+                    beta = score;
+                }
+                if beta <= alpha {
+                    break;
+                }
+            }
+
+            beta
+        }
+    }
+
     pub fn evaluate(&mut self, board: &mut Board) -> EvaluationResult {
-        if self.evaluation_cache.contains_key(&board.hash) {
-            return *self.evaluation_cache.get(&board.hash).unwrap()
+        if self.evaluation_cache.contains(board.hash) {
+            return *self.evaluation_cache.get(board.hash).unwrap()
         }
         let value = evaluate(board);
-        self.evaluation_cache.insert(board.hash, value);
+        self.evaluation_cache.store(board.hash, value);
 
         value
     }
@@ -380,7 +505,7 @@ impl Minimax {
         }
         let mut value = 0.0;
 
-        if let Some(node) = self.transposition_table.get(&board.hash) {
+        if let Some(node) = self.transposition_table.get(board.hash) {
             if let Some(best_move) = &node.best_move {
                 if best_move == m {
                     value += PV_MOVE;
@@ -419,7 +544,7 @@ impl Minimax {
         value += m.ps_table(board);
 
         if board.moves < 10 && m.piece_type == PieceType::Pawn {
-            value += 100.0;
+            value += PAWN_DEVELOPMENT_BONUS;
 
             let file = m.to.x;
             let rank = m.to.y;
@@ -431,7 +556,7 @@ impl Minimax {
             }
 
             if (m.from.y as isize - rank as isize).abs() == 2 {
-                value += 100.0;
+                value += PAWN_DEVELOPMENT_BONUS;
             }
         }
 
