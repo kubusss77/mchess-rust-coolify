@@ -116,15 +116,15 @@ pub fn get_legal_moves_rook(piece: &Piece, board: &Board) -> Vec<Move> {
         if check_info.block_mask != 0u64 { valid_squares = check_info.block_mask; }
     }
 
-    let (attacks, _) = generate_rook_rays(pos, board.all_pieces, 0u64, false);
+    let (attacks, _) = generate_rook_rays(pos, board.bb.all_pieces, 0u64, false);
 
     let enemy = if piece.color == PieceColor::White {
-        board.black_pieces
+        board.bb.black_pieces
     } else {
-        board.white_pieces
+        board.bb.white_pieces
     };
 
-    let valid_moves = attacks & (board.empty_squares | enemy) & valid_squares;
+    let valid_moves = attacks & (board.bb.empty_squares | enemy) & valid_squares;
 
     let valid_moves = if let Some(pin) = pin_dir {
         if pin.x == 0 || pin.y == 0 {
@@ -181,18 +181,18 @@ pub fn get_controlled_squares_rook(piece: &PartialPiece, board: &Board) -> Vec<C
     let pos = piece.pos.to_bitboard();
     let mut controlled = Vec::with_capacity(14);
     
-    let (attacks, obscured) = generate_rook_rays(pos, board.all_pieces, if piece.color == PieceColor::White { board.black_king } else { board.white_king }, true);
+    let (attacks, obscured) = generate_rook_rays(pos, board.bb.all_pieces, if piece.color == PieceColor::White { board.bb.black_king } else { board.bb.white_king }, true);
 
     let friendly = if piece.color == PieceColor::White {
-        board.white_pieces
+        board.bb.white_pieces
     } else {
-        board.black_pieces
+        board.bb.black_pieces
     };
 
     let enemy = if piece.color == PieceColor::White {
-        board.black_pieces
+        board.bb.black_pieces
     } else {
-        board.white_pieces
+        board.bb.white_pieces
     };
 
     let mut rem = attacks;

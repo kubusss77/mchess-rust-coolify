@@ -73,3 +73,27 @@ fn test_castling_rights() {
     assert!(!board.castling.can_castle_ks(PieceColor::White));
     assert!(!board.castling.can_castle_qs(PieceColor::White));
 }
+
+#[test]
+fn test_castling_rights2() {
+    let mut board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+
+    let moves = board.get_total_legal_moves(None);
+    for m in &moves {
+        if format!("{:?}", m) == "f3h3" {
+            board.make_move(m);
+        }
+    }
+
+    let moves = board.get_total_legal_moves(None);
+    for m in &moves {
+        if format!("{:?}", m) == "h8h4" {
+            board.make_move(m);
+        }
+    }
+
+    println!("{:?}", board);
+
+    assert!(board.castling.can_castle_qs(PieceColor::Black));
+    assert!(!board.castling.can_castle_ks(PieceColor::Black));
+}

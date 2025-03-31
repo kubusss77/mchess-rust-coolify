@@ -17,7 +17,7 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
                      ((pos >> 7) & A_FILE_INV) |
                      ((pos >> 9) & H_FILE_INV);
 
-    let valid_moves = king_moves & (board.empty_squares | if piece.color == PieceColor::White { board.black_pieces } else { board.white_pieces });
+    let valid_moves = king_moves & (board.bb.empty_squares | if piece.color == PieceColor::White { board.bb.black_pieces } else { board.bb.white_pieces });
 
     let mut rem = valid_moves;
 
@@ -72,7 +72,7 @@ pub fn get_legal_moves_king(piece: &Piece, board: &Board) -> Vec<Move> {
         })
     }
 
-    if board.castling.can_castle_qs(piece.color) && can_move_multifile(piece, board, piece.pos.y, vec![ ifile - 1, ifile - 2 ]) {
+    if board.castling.can_castle_qs(piece.color) && can_move_multifile(piece, board, piece.pos.y, vec![ ifile - 1, ifile - 2 ]) && board.is_empty(piece.pos.y, Position::clamp(ifile - 3)) {
         moves.push(Move {
             from: piece.pos,
             to: Position::from(ifile - 2, piece.pos.y as isize),
@@ -121,15 +121,15 @@ pub fn get_controlled_squares_king(piece: &PartialPiece, board: &Board) -> Vec<C
     }
 
     let friendly = if piece.color == PieceColor::White {
-        board.white_pieces
+        board.bb.white_pieces
     } else {
-        board.black_pieces
+        board.bb.black_pieces
     };
 
     let enemy = if piece.color == PieceColor::White {
-        board.black_pieces
+        board.bb.black_pieces
     } else {
-        board.white_pieces
+        board.bb.white_pieces
     };
 
     let mut rem = king_moves;

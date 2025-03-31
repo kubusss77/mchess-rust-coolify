@@ -47,9 +47,9 @@ fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board,
 
         let captured = if is_en_passant {
             if piece.color == PieceColor::White {
-                board.get_piece_at(position.y - 1, position.x)
-            } else {
                 board.get_piece_at(position.y + 1, position.x)
+            } else {
+                board.get_piece_at(position.y - 1, position.x)
             }
         } else if is_capture {
             board.get_piece_at(position.y, position.x)
@@ -57,10 +57,15 @@ fn bitboard_to_move(piece: &Piece, pos: u64, move_type: MoveType, board: &Board,
             None
         };
 
+        let mut move_type = vec![move_type];
+        if is_en_passant {
+            move_type.extend(vec![MoveType::EnPassant]);
+        }
+
         let m = Move {
             from: piece.pos,
             to: position,
-            move_type: vec![move_type; 1],
+            move_type,
             captured,
             promote_to: None,
             piece_index: piece.index,
@@ -94,35 +99,35 @@ pub fn get_legal_moves_pawn(piece: &Piece, board: &Board) -> Vec<Move> {
     }
 
     let single_push = if piece.color == PieceColor::White {
-        (pos >> 8) & board.empty_squares
+        (pos >> 8) & board.bb.empty_squares
     } else {
-        (pos << 8) & board.empty_squares
+        (pos << 8) & board.bb.empty_squares
     };
 
     let double_push = if piece.color == PieceColor::White {
         if (pos & RANK_2) != 0 {
-            ((pos >> 8) >> 8) & board.empty_squares & (single_push >> 8)
+            ((pos >> 8) >> 8) & board.bb.empty_squares & (single_push >> 8)
         } else {
             0
         }
     } else {
         if (pos & RANK_7) != 0 {
-            ((pos << 8) << 8) & board.empty_squares & (single_push << 8)
+            ((pos << 8) << 8) & board.bb.empty_squares & (single_push << 8)
         } else {
             0
         }
     };
 
     let left_capture = if piece.color == PieceColor::White {
-        ((pos & A_FILE_INV) >> 9) & board.black_pieces
+        ((pos & A_FILE_INV) >> 9) & board.bb.black_pieces
     } else {
-        ((pos & A_FILE_INV) << 7) & board.white_pieces
+        ((pos & A_FILE_INV) << 7) & board.bb.white_pieces
     };
 
     let right_capture = if piece.color == PieceColor::White {
-        ((pos & H_FILE_INV) >> 7) & board.black_pieces
+        ((pos & H_FILE_INV) >> 7) & board.bb.black_pieces
     } else {
-        ((pos & H_FILE_INV) << 9) & board.white_pieces
+        ((pos & H_FILE_INV) << 9) & board.bb.white_pieces
     };
 
     bitboard_to_move(piece, single_push & valid_squares, MoveType::Normal, board, &mut moves, pin_dir);
@@ -164,20 +169,20 @@ pub fn get_controlled_squares_pawn(piece: &PartialPiece, board: &Board) -> Vec<C
     };
 
     let single_push = if piece.color == PieceColor::White {
-        (pos >> 8) & board.empty_squares
+        (pos >> 8) & board.bb.empty_squares
     } else {
-        (pos << 8) & board.empty_squares
+        (pos << 8) & board.bb.empty_squares
     };
 
     let double_push = if piece.color == PieceColor::White {
         if (pos & RANK_2) != 0 {
-            ((pos >> 8) >> 8) & board.empty_squares & (single_push >> 8)
+            ((pos >> 8) >> 8) & board.bb.empty_squares & (single_push >> 8)
         } else {
             0
         }
     } else {
         if (pos & RANK_7) != 0 {
-            ((pos << 8) << 8) & board.empty_squares & (single_push << 8)
+            ((pos << 8) << 8) & board.bb.empty_squares & (single_push << 8)
         } else {
             0
         }
@@ -193,15 +198,15 @@ pub fn get_controlled_squares_pawn(piece: &PartialPiece, board: &Board) -> Vec<C
     }
 
     let friendly = if piece.color == PieceColor::White {
-        board.white_pieces
+        board.bb.white_pieces
     } else {
-        board.black_pieces
+        board.bb.black_pieces
     };
 
     let enemy = if piece.color == PieceColor::White {
-        board.black_pieces
+        board.bb.black_pieces
     } else {
-        board.white_pieces
+        board.bb.white_pieces
     };
 
     let mut rem = moves;

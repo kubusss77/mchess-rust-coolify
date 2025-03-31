@@ -226,9 +226,9 @@ pub fn evaluate_king_safety(board: &Board, color: PieceColor) -> f64 {
     };
     
     let pawns = if color == PieceColor::White {
-        board.white_pawns
+        board.bb.white_pawns
     } else {
-        board.black_pawns
+        board.bb.black_pawns
     };
 
     let positions = shield & pawns;
@@ -237,9 +237,9 @@ pub fn evaluate_king_safety(board: &Board, color: PieceColor) -> f64 {
 
     // pawn storm
     let enemy_pawns = if color == PieceColor::White {
-        board.black_pawns
+        board.bb.black_pawns
     } else {
-        board.white_pawns
+        board.bb.white_pawns
     };
 
     let storm_penalty = if color == PieceColor::White {
@@ -291,17 +291,17 @@ pub fn evaluate_king_safety(board: &Board, color: PieceColor) -> f64 {
     let safety_score = shield_value + scaled_position_value - storm_penalty - mobility_penalty - attack_penalty;
 
     let attack_potential = if king.color == PieceColor::White {
-        let queens = (board.black_queens.count_ones() as f64) * 3.0;
-        let rooks = (board.black_rooks.count_ones() as f64) * 2.0;
-        let bishops = (board.black_bishops.count_ones() as f64) * 1.5;
-        let knights = (board.black_knights.count_ones() as f64) * 1.5;
+        let queens = (board.bb.black_queens.count_ones() as f64) * 3.0;
+        let rooks = (board.bb.black_rooks.count_ones() as f64) * 2.0;
+        let bishops = (board.bb.black_bishops.count_ones() as f64) * 1.5;
+        let knights = (board.bb.black_knights.count_ones() as f64) * 1.5;
         
         queens + rooks + bishops + knights
     } else {
-        let queens = (board.white_queens.count_ones() as f64) * 3.0;
-        let rooks = (board.white_rooks.count_ones() as f64) * 2.0;
-        let bishops = (board.white_bishops.count_ones() as f64) * 1.5;
-        let knights = (board.white_knights.count_ones() as f64) * 1.5;
+        let queens = (board.bb.white_queens.count_ones() as f64) * 3.0;
+        let rooks = (board.bb.white_rooks.count_ones() as f64) * 2.0;
+        let bishops = (board.bb.white_bishops.count_ones() as f64) * 1.5;
+        let knights = (board.bb.white_knights.count_ones() as f64) * 1.5;
         
         queens + rooks + bishops + knights
     };

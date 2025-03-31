@@ -15,6 +15,9 @@ mod special {
     pub mod blocks;
     pub mod evaluation;
     pub mod castling;
+    pub mod capture;
+    // position-specific tests
+    pub mod pos;
 }
 
 mod common;

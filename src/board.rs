@@ -182,11 +182,12 @@ pub struct MoveInfo {
     pub affected_pieces: Vec<usize>,
     pub control_bitboards: ControlBitboards,
     pub target_square: Option<Position>,
-    pub target_piece: i32
+    pub target_piece: i32,
+    pub bitboards: BitboardData
 }
 
 #[derive(Clone)]
-pub struct Board {
+pub struct BitboardData {
     pub white_pawns: u64,
     pub white_knights: u64,
     pub white_bishops: u64,
@@ -204,7 +205,11 @@ pub struct Board {
     pub black_pieces: u64,
     pub all_pieces: u64,
     pub empty_squares: u64,
+}
 
+#[derive(Clone)]
+pub struct Board {
+    pub bb: BitboardData,
     pub board: Vec<Vec<isize>>,
     // pub control_table: ControlTable,
     // pub control_table_lookup: ControlTableLookup,
@@ -231,25 +236,26 @@ pub struct Board {
 impl Board {
     pub fn new(moves: Option<i32>, halfmove_clock: Option<i32>, turn: Option<PieceColor>, castling: Option<Castling>, target_square: Option<Position>) -> Self {
         Board {
-            white_pawns: 0,
-            white_knights: 0,
-            white_bishops: 0,
-            white_rooks: 0,
-            white_queens: 0,
-            white_king: 0,
-            white_pieces: 0,
-
-            black_pawns: 0,
-            black_knights: 0,
-            black_bishops: 0,
-            black_rooks: 0,
-            black_queens: 0,
-            black_king: 0,
-            black_pieces: 0,
-
-            all_pieces: 0,
-            empty_squares: !0,
-
+            bb: BitboardData {
+                white_pawns: 0,
+                white_knights: 0,
+                white_bishops: 0,
+                white_rooks: 0,
+                white_queens: 0,
+                white_king: 0,
+                white_pieces: 0,
+    
+                black_pawns: 0,
+                black_knights: 0,
+                black_bishops: 0,
+                black_rooks: 0,
+                black_queens: 0,
+                black_king: 0,
+                black_pieces: 0,
+    
+                all_pieces: 0,
+                empty_squares: !0
+            },
             board: vec![vec![-1; 8]; 9],
             pieces: HashMap::new(),
             moves: match moves {
@@ -355,7 +361,7 @@ impl Board {
             }
         }
 
-        if board.white_king == 0u64 || board.black_king == 0u64 {
+        if board.bb.white_king == 0u64 || board.bb.black_king == 0u64 {
             panic!("Invalid chess board");
         }
 
@@ -395,18 +401,18 @@ impl Board {
     }
 
     pub fn get_piece_at_bitboard(&self, square: u64) -> Option<BasePiece> {
-        if square & self.white_pawns != 0 { return Some((PieceType::Pawn, PieceColor::White)); }
-        if square & self.white_knights != 0 { return Some((PieceType::Knight, PieceColor::White)); }
-        if square & self.white_bishops != 0 { return Some((PieceType::Bishop, PieceColor::White)); }
-        if square & self.white_rooks != 0 { return Some((PieceType::Rook, PieceColor::White)); }
-        if square & self.white_queens != 0 { return Some((PieceType::Queen, PieceColor::White)); }
-        if square & self.white_king != 0 { return Some((PieceType::King, PieceColor::White)); }
-        if square & self.black_pawns != 0 { return Some((PieceType::Pawn, PieceColor::Black)); }
-        if square & self.black_knights != 0 { return Some((PieceType::Knight, PieceColor::Black)); }
-        if square & self.black_bishops != 0 { return Some((PieceType::Bishop, PieceColor::Black)); }
-        if square & self.black_rooks != 0 { return Some((PieceType::Rook, PieceColor::Black)); }
-        if square & self.black_queens != 0 { return Some((PieceType::Queen, PieceColor::Black)); }
-        if square & self.black_king != 0 { return Some((PieceType::King, PieceColor::Black)); }
+        if square & self.bb.white_pawns != 0 { return Some((PieceType::Pawn, PieceColor::White)); }
+        if square & self.bb.white_knights != 0 { return Some((PieceType::Knight, PieceColor::White)); }
+        if square & self.bb.white_bishops != 0 { return Some((PieceType::Bishop, PieceColor::White)); }
+        if square & self.bb.white_rooks != 0 { return Some((PieceType::Rook, PieceColor::White)); }
+        if square & self.bb.white_queens != 0 { return Some((PieceType::Queen, PieceColor::White)); }
+        if square & self.bb.white_king != 0 { return Some((PieceType::King, PieceColor::White)); }
+        if square & self.bb.black_pawns != 0 { return Some((PieceType::Pawn, PieceColor::Black)); }
+        if square & self.bb.black_knights != 0 { return Some((PieceType::Knight, PieceColor::Black)); }
+        if square & self.bb.black_bishops != 0 { return Some((PieceType::Bishop, PieceColor::Black)); }
+        if square & self.bb.black_rooks != 0 { return Some((PieceType::Rook, PieceColor::Black)); }
+        if square & self.bb.black_queens != 0 { return Some((PieceType::Queen, PieceColor::Black)); }
+        if square & self.bb.black_king != 0 { return Some((PieceType::King, PieceColor::Black)); }
         None
     }
 
@@ -414,44 +420,44 @@ impl Board {
         let square = pos.to_bitboard();
 
         match piece {
-            (PieceType::Pawn, PieceColor::White) => self.white_pawns |= square,
-            (PieceType::Knight, PieceColor::White) => self.white_knights |= square,
-            (PieceType::Bishop, PieceColor::White) => self.white_bishops |= square,
-            (PieceType::Rook, PieceColor::White) => self.white_rooks |= square,
-            (PieceType::Queen, PieceColor::White) => self.white_queens |= square,
-            (PieceType::King, PieceColor::White) => self.white_king |= square,
-            (PieceType::Pawn, PieceColor::Black) => self.black_pawns |= square,
-            (PieceType::Knight, PieceColor::Black) => self.black_knights |= square,
-            (PieceType::Bishop, PieceColor::Black) => self.black_bishops |= square,
-            (PieceType::Rook, PieceColor::Black) => self.black_rooks |= square,
-            (PieceType::Queen, PieceColor::Black) => self.black_queens |= square,
-            (PieceType::King, PieceColor::Black) => self.black_king |= square,
+            (PieceType::Pawn, PieceColor::White) => self.bb.white_pawns |= square,
+            (PieceType::Knight, PieceColor::White) => self.bb.white_knights |= square,
+            (PieceType::Bishop, PieceColor::White) => self.bb.white_bishops |= square,
+            (PieceType::Rook, PieceColor::White) => self.bb.white_rooks |= square,
+            (PieceType::Queen, PieceColor::White) => self.bb.white_queens |= square,
+            (PieceType::King, PieceColor::White) => self.bb.white_king |= square,
+            (PieceType::Pawn, PieceColor::Black) => self.bb.black_pawns |= square,
+            (PieceType::Knight, PieceColor::Black) => self.bb.black_knights |= square,
+            (PieceType::Bishop, PieceColor::Black) => self.bb.black_bishops |= square,
+            (PieceType::Rook, PieceColor::Black) => self.bb.black_rooks |= square,
+            (PieceType::Queen, PieceColor::Black) => self.bb.black_queens |= square,
+            (PieceType::King, PieceColor::Black) => self.bb.black_king |= square,
         }
 
         if piece.1 == PieceColor::White {
-            self.white_pieces |= square;
+            self.bb.white_pieces |= square;
         } else {
-            self.black_pieces |= square;
+            self.bb.black_pieces |= square;
         }
-        self.all_pieces |= square;
-        self.empty_squares = !self.all_pieces;
+        self.bb.all_pieces |= square;
+        self.bb.empty_squares = !self.bb.all_pieces;
     }
 
     pub fn bb_and_rev_pos(&mut self, piece: BasePiece, pos: Position) {
         let square = pos.to_bitboard();
         match piece {
-            (PieceType::Pawn, PieceColor::White) => self.white_pawns &= !square,
-            (PieceType::Knight, PieceColor::White) => self.white_knights &= !square,
-            (PieceType::Bishop, PieceColor::White) => self.white_bishops &= !square,
-            (PieceType::Rook, PieceColor::White) => self.white_rooks &= !square,
-            (PieceType::Queen, PieceColor::White) => self.white_queens &= !square,
-            (PieceType::King, PieceColor::White) => self.white_king &= !square,
-            (PieceType::Pawn, PieceColor::Black) => self.black_pawns &= !square,
-            (PieceType::Knight, PieceColor::Black) => self.black_knights &= !square,
-            (PieceType::Bishop, PieceColor::Black) => self.black_bishops &= !square,
-            (PieceType::Rook, PieceColor::Black) => self.black_rooks &= !square,
-            (PieceType::Queen, PieceColor::Black) => self.black_queens &= !square,
-            (PieceType::King, PieceColor::Black) => self.black_king &= !square,
+            (PieceType::Pawn, PieceColor::White) => self.bb.white_pawns &= !square,
+            (PieceType::Knight, PieceColor::White) => self.bb.white_knights &= !square,
+            (PieceType::Bishop, PieceColor::White) => self.bb.white_bishops &= !square,
+            (PieceType::Rook, PieceColor::White) => self.bb.white_rooks &= !square,
+            (PieceType::Queen, PieceColor::White) => self.bb.white_queens &= !square,
+            (PieceType::King, PieceColor::White) => self.bb.white_king &= !square,
+            (PieceType::Pawn, PieceColor::Black) => self.bb.black_pawns &= !square,
+            (PieceType::Knight, PieceColor::Black) => self.bb.black_knights &= !square,
+            (PieceType::Bishop, PieceColor::Black) => self.bb.black_bishops &= !square,
+            (PieceType::Rook, PieceColor::Black) => self.bb.black_rooks &= !square,
+            (PieceType::Queen, PieceColor::Black) => self.bb.black_queens &= !square,
+            (PieceType::King, PieceColor::Black) => self.bb.black_king &= !square,
         }
     }
     
@@ -464,15 +470,15 @@ impl Board {
         let from_bb = from.to_bitboard();
 
         if piece.1 == PieceColor::White {
-            self.white_pieces &= !from_bb;
-            self.white_pieces |= to_bb;
+            self.bb.white_pieces &= !from_bb;
+            self.bb.white_pieces |= to_bb;
         } else {
-            self.black_pieces &= !from_bb;
-            self.black_pieces |= to_bb;
+            self.bb.black_pieces &= !from_bb;
+            self.bb.black_pieces |= to_bb;
         }
-        self.all_pieces &= !from_bb;
-        self.all_pieces |= to_bb;
-        self.empty_squares = !self.all_pieces;
+        self.bb.all_pieces &= !from_bb;
+        self.bb.all_pieces |= to_bb;
+        self.bb.empty_squares = !self.bb.all_pieces;
     }
 
     pub fn clear(&mut self) {
@@ -575,7 +581,7 @@ impl Board {
     }
 
     pub fn make_move(&mut self, m: &Move) -> MoveInfo {
-        if !self.pieces.contains_key(&m.piece_index) { println!("{:?} {}\n{:?}", m, m.piece_index, self); }
+        if !self.pieces.contains_key(&m.piece_index) { println!("{:?} {}\n{:?}\n{:?}", m, m.piece_index, self, self.pieces); }
         let mut history = MoveInfo {
             hash: self.hash,
             captured_piece: m.captured.clone(),
@@ -592,20 +598,40 @@ impl Board {
             control_bitboards: self.control_bitboards.clone(),
             affected_pieces: Vec::with_capacity(0),
             target_square: self.target_square.clone(),
-            target_piece: self.target_piece
+            target_piece: self.target_piece,
+            bitboards: self.bb.clone()
         };
 
         let piece_index = m.piece_index;
 
         self.update_bitboard_pos((m.piece_type, m.piece_color), m.from, m.to);
 
+        self.check.clear();
+        self.check.insert(PieceColor::White, CheckInfo::default());
+        self.check.insert(PieceColor::Black, CheckInfo::default());
+
         if m.move_type.contains(&MoveType::Capture) && m.captured.is_some() {
             let captured = m.captured.as_ref().unwrap();
 
+            self.clear_control(captured.index);
+
             self.pieces.remove(&captured.index);
+            self.bb_and_rev_pos(captured.get_base(), captured.pos);
+            if captured.color == PieceColor::White {
+                self.bb.white_pieces &= !captured.pos.to_bitboard();
+            } else {
+                self.bb.black_pieces &= !captured.pos.to_bitboard();
+            }
+
+            if m.move_type.contains(&MoveType::EnPassant) {
+                self.bb.all_pieces &= !captured.pos.to_bitboard();
+                self.bb.empty_squares |= captured.pos.to_bitboard();
+            }
             
             let captured_piece_index = captured.to_piece_index();
             self.hash ^= self.hash_table[captured_piece_index * 64 + captured.pos.y * 8 + captured.pos.x];
+
+            self.board[captured.pos.x][captured.pos.y] = -1;
         }
 
         let piece = self.pieces.get_mut(&piece_index).unwrap();
@@ -740,8 +766,6 @@ impl Board {
         self.update_board(m.move_type.contains(&MoveType::Capture) || m.move_type.contains(&MoveType::Promotion));
         self.update_pins();
 
-        history.control_bitboards = self.control_bitboards.clone();
-
         let mut affected = Vec::with_capacity(to_indices.len() + from_indices.len());
         affected.extend(to_indices);
         affected.extend(from_indices);
@@ -757,23 +781,20 @@ impl Board {
             piece.pos.clone()
         };
 
-        self.update_bitboard_pos((m.piece_type, m.piece_color), m.to, m.from);
-
         self.board[current_position.x][current_position.y] = -1;
         self.board[m.from.x][m.from.y] = m.piece_index as isize;
 
         if let Some(piece) = self.pieces.get_mut(&m.piece_index) {
             piece.pos = m.from.clone();
             
-            if let Some(original_type) = history.promoted_type {
-                piece.piece_type = original_type;
+            if history.promoted_type.is_some() {
+                piece.piece_type = PieceType::Pawn;
             }
         }
 
-        if let Some(captured) = history.captured_piece.clone() {
+        if let Some(captured) = &history.captured_piece {
             self.pieces.insert(captured.index, captured.clone());
             self.board[m.to.x][m.to.y] = captured.index as isize;
-            self.bb_or_pos(captured.get_base(), captured.pos);
         }
 
         if m.move_type.contains(&MoveType::Castling) && m.with.is_some() {
@@ -789,8 +810,6 @@ impl Board {
                 y: m.from.y
             };
 
-            self.update_bitboard_pos((PieceType::Rook, m.piece_color), old_pos, new_pos);
-
             self.board[old_pos.x][old_pos.y] = -1;
             self.board[new_pos.x][new_pos.y] = rook.index as isize;
 
@@ -804,8 +823,11 @@ impl Board {
         self.turn = history.turn;
         self.castling = history.castling.clone();
         self.target_square = history.target_square;
+        self.target_piece = history.target_piece;
 
-        self.control_bitboards.clear();
+        self.control_bitboards = history.control_bitboards.clone();
+        self.bb = history.bitboards.clone();
+        self.total_moves_cache.clear();
 
         self.check_control_all();
 
@@ -862,10 +884,10 @@ impl Board {
                 if a > 100 { panic!("While loop has been running for over 100 iterations"); }
                 let index = rem.trailing_zeros() as usize;
                 let square = 1u64 << index;
-
+                
                 if let Some(entries) = self.control_bitboards.control_entries.get_mut(&square) {
                     entries.retain(|entry| entry.index != piece_index);
-
+                    
                     if entries.is_empty() {
                         self.control_bitboards.control_entries.remove(&square);
                     }
@@ -920,7 +942,13 @@ impl Board {
                     check_info.double_checked |= control.pos.to_bitboard();
                 } else {
                     if piece._directional {
-                        let filtered = controlled_squares.iter().filter(|c| c.direction.unwrap() == control.direction.unwrap() && c.direction.unwrap().in_direction(piece.pos, c.pos) && c.direction.unwrap().in_direction(king_pos, c.pos) && c.pos != king_pos);
+                        let filtered = controlled_squares.iter()
+                            .filter(|c| c.direction.unwrap() == control.direction.unwrap() && 
+                                c.direction.unwrap().in_direction(piece.pos, c.pos) && 
+                                c.direction.unwrap().in_direction(king_pos, c.pos) &&
+                                c.pos != king_pos &&
+                                !c.pos.is_bigger_than(king_pos, c.direction.unwrap())
+                            );
                         check_info.block_positions = Some(filtered.map(|c| c.pos).chain([piece.pos]).collect());
                     } else {
                         check_info.block_positions = Some(vec![piece.pos]);
@@ -989,13 +1017,18 @@ impl Board {
         self.hash ^= self.hash_table[piece.to_piece_index() * 64 + piece.pos.y * 8 + piece.pos.x];
 
         self.check_control(piece_index);
+
+        let piece = self.pieces.get(&piece_index).unwrap().clone();
+        
+        self.bb_and_rev_pos((PieceType::Pawn, piece.color), piece.pos);
+        self.bb_or_pos(piece.get_base(), piece.pos);
     }
 
     pub fn get_king_pos(&self, color: PieceColor) -> Position {
         let square = if color == PieceColor::White {
-            self.white_king
+            self.bb.white_king
         } else {
-            self.black_king
+            self.bb.black_king
         };
 
         Position::from_bitboard(square)
@@ -1016,20 +1049,20 @@ impl Board {
                 PieceColor::Black => ResultType::WhiteCheckmate
             }
         } else {
-            let no_material = (self.white_queens | self.white_rooks | self.white_pawns | self.black_queens | self.black_rooks | self.black_pawns).count_ones() == 0;
-            let white_no_minor = (self.white_knights | self.white_bishops).count_ones() == 0;
-            let black_no_minor = (self.black_knights | self.black_bishops).count_ones() == 0;
-            let white_one_bishop = self.white_bishops.count_ones() == 1 && self.white_knights.count_ones() == 0;
-            let black_one_bishop = self.black_bishops.count_ones() == 1 && self.black_knights.count_ones() == 0;
-            let white_one_knight = self.white_knights.count_ones() == 1 && self.white_bishops.count_ones() == 0;
-            let black_one_knight = self.black_knights.count_ones() == 1 && self.black_bishops.count_ones() == 0;
+            let no_material = (self.bb.white_queens | self.bb.white_rooks | self.bb.white_pawns | self.bb.black_queens | self.bb.black_rooks | self.bb.black_pawns).count_ones() == 0;
+            let white_no_minor = (self.bb.white_knights | self.bb.white_bishops).count_ones() == 0;
+            let black_no_minor = (self.bb.black_knights | self.bb.black_bishops).count_ones() == 0;
+            let white_one_bishop = self.bb.white_bishops.count_ones() == 1 && self.bb.white_knights.count_ones() == 0;
+            let black_one_bishop = self.bb.black_bishops.count_ones() == 1 && self.bb.black_knights.count_ones() == 0;
+            let white_one_knight = self.bb.white_knights.count_ones() == 1 && self.bb.white_bishops.count_ones() == 0;
+            let black_one_knight = self.bb.black_knights.count_ones() == 1 && self.bb.black_bishops.count_ones() == 0;
             if self.halfmove_clock > 100 ||
                 (no_material && white_no_minor && black_no_minor) ||
                 (no_material && white_no_minor && black_one_bishop) ||
                 (no_material && black_no_minor && white_one_bishop) ||
                 (no_material && white_no_minor && black_one_knight) ||
                 (no_material && black_no_minor && white_one_knight) ||
-                (no_material && white_one_bishop && black_one_bishop && self.white_bishops & COLOR_MASK == self.black_bishops & COLOR_MASK) {
+                (no_material && white_one_bishop && black_one_bishop && self.bb.white_bishops & COLOR_MASK == self.bb.black_bishops & COLOR_MASK) {
                 ResultType::Draw
             } else {
                 ResultType::None
@@ -1100,9 +1133,37 @@ impl Board {
         let block_positions = self.check.get(&color).expect("CheckInfo expected").block_positions.clone().unwrap_or(Vec::with_capacity(0));
         let mut moves = vec![];
         for pos in block_positions {
+            let has_enemy_piece = if let Some(piece) = self.get_piece_at(pos.y, pos.x) {
+                piece.color != color
+            } else {
+                false
+            };
             let control_at = self.get_control_at(pos.y, pos.x, Some(color), false);
             let control = control_at.iter()
-                .filter(|c| !c.obscured && !c.is_king);
+                .filter(|c: &&ControlTableEntry| !c.obscured && 
+                    !c.is_king && 
+                    ((c.threat == ControlThreat::Threatning && has_enemy_piece) || c.threat.is_move()) &&
+                    if let Some(piece) = self.pieces.get(&c.index) {
+                        let piece_pos = piece.pos;
+                        let pin_dir = self.is_pinned(piece_pos.y, piece_pos.x);
+
+                        if let Some(pin) = pin_dir {
+                            let x_diff = (pos.x as isize - piece_pos.x as isize).signum();
+                            let y_diff = (pos.y as isize - piece_pos.y as isize).signum();
+    
+                            let vec = Vector {
+                                x: x_diff,
+                                y: y_diff
+                            };
+    
+                            vec.is_parallel_to(pin)
+                        } else {
+                            true
+                        }
+                    } else {
+                        false
+                    }
+                );
             moves.extend(control.map(|c| c.to_move(self, pos)))
         }
         moves
@@ -1153,7 +1214,7 @@ impl Board {
         let square = pos.to_bitboard();
         if let Some(entries) = self.control_bitboards.control_entries.get(&square) {
             if let Some(color) = color {
-                entries.iter().filter(|c| c.color == color && if attacks { c.threat.is_attack() } else { c.threat.is_move() }).cloned().collect()
+                entries.iter().filter(|c| c.color == color && if attacks { c.threat.is_attack() } else { true }).cloned().collect()
             } else {
                 entries.iter().filter(|c| if attacks { c.threat.is_attack() } else { c.threat.is_move() }).cloned().collect()
             }

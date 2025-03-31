@@ -12,8 +12,8 @@ fn test_make_unmake_consistency() {
         
         // Verify board state is fully restored
         assert_eq!(board.hash, original.hash, "Hash mismatch after unmake_move");
-        assert_eq!(board.white_pieces, original.white_pieces, "White pieces mismatch");
-        assert_eq!(board.black_pieces, original.black_pieces, "Black pieces mismatch");
+        assert_eq!(board.bb.white_pieces, original.bb.white_pieces, "White pieces mismatch");
+        assert_eq!(board.bb.black_pieces, original.bb.black_pieces, "Black pieces mismatch");
         assert_eq!(board.turn, original.turn, "Turn mismatch");
     }
 }

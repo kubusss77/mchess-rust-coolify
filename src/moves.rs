@@ -39,6 +39,32 @@ impl Position {
         let index = square.trailing_zeros() as usize;
         Position { x: index % 8, y: index / 8 }
     }
+
+    pub fn is_bigger_than(&self, base: Position, dir: Vector) -> bool {
+        let dx = self.x as isize - base.x as isize;
+        let dy = self.y as isize - base.y as isize;
+
+        if dx == 0 && dy == 0 {
+            return false;
+        }
+
+        if dir.x == 0 {
+            if dx != 0 {
+                return false;
+            }
+            return dy * dir.y > 0;
+        } else if dir.y == 0 {
+            if dy != 0 {
+                return false;
+            }
+            return dx * dir.x > 0;
+        } else {
+            if dx.abs() != dy.abs() {
+                return false;
+            }
+            return dx * dir.x > 0 && dy * dir.y > 0;
+        }
+    }
 }
 
 impl fmt::Debug for Position {
@@ -83,6 +109,13 @@ impl Vector {
     pub fn is_parallel_to(&self, other: Vector) -> bool {
         self.x * other.y == self.y * other.x
     }
+
+    pub fn inv(&self) -> Vector {
+        Vector {
+            x: -self.x,
+            y: -self.y
+        }
+    }
 }
 
 impl PartialEq for Vector {
@@ -97,7 +130,8 @@ pub enum MoveType {
     Capture,
     Castling,
     Promotion,
-    Check
+    Check,
+    EnPassant
 }
 
 #[derive(Clone)]

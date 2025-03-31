@@ -7,10 +7,10 @@ fn perft(board: &mut Board, depth: u32) -> u64 {
     if depth == 1 { return moves.len() as u64; }
     
     let mut nodes = 0;
-    for mov in moves {
-        let history = board.make_move(&mov);
+    for m in moves {
+        let history = board.make_move(&m);
         nodes += perft(board, depth - 1);
-        board.unmake_move(&mov, &history);
+        board.unmake_move(&m, &history);
     }
     nodes
 }
@@ -20,24 +20,33 @@ fn split_perft(board: &mut Board, depth: u32) -> u64 {
     
     let moves = board.get_total_legal_moves(None);
     if depth == 1 { 
-        for mov in &moves {
-            println!("{:?}: 1", mov);
+        for m in &moves {
+            println!("{:?}: 1", m);
         }
         return moves.len() as u64; 
     }
     
     let mut total_nodes = 0;
     
-    for mov in moves {
-        let move_str = format!("{:?}", mov);
+    for m in moves {
+        let move_str = format!("{:?}", m);
         
-        let history = board.make_move(&mov);
-        let nodes = perft(board, depth - 1);
+        let history = board.make_move(&m);
+        let nodes = 
+        if format!("{:?}", m) == "c3b1" {
+            split_perft(board, depth - 1)
+        } else if format!("{:?}", m) == "f6h7" {
+            split_perft(board, depth - 1)
+        } else if format!("{:?}", m) == "f1a6" {
+            split_perft(board, depth - 1)
+        } else {
+            perft(board, depth - 1)
+        };
         
         println!("{}: {}", move_str, nodes);
         
         total_nodes += nodes;
-        board.unmake_move(&mov, &history);
+        board.unmake_move(&m, &history);
     }
     
     println!("\nTotal: {}", total_nodes);
@@ -116,12 +125,15 @@ fn test_split_perft() {
     let mut board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
 
     let result = split_perft(&mut board, 3);
+    let result2 = split_perft(&mut board, 3);
+
+    assert_eq!(result, result2, "Inconsistent results");
 
     assert_eq!(result, 97862);
 
     // position 3
     let mut board = Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-    let result = split_perft(&mut board, 2);
+    let result = split_perft(&mut board, 4);
 
-    assert_eq!(result, 191);
+    assert_eq!(result, 43238);
 }
