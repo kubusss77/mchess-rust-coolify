@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead};
 use std::path::Path;
 
@@ -31,6 +31,42 @@ impl OpeningBook {
         OpeningBook {
             root: BookNode::new(),
         }
+    }
+
+    pub fn load_book_directory<P: AsRef<Path>>(&mut self, dir_path: P) -> io::Result<usize> {
+        let mut total_files = 0;
+        let mut total_games = 0;
+
+        for file in fs::read_dir(dir_path)? {
+            let file = file?;
+            let path = file.path();
+
+            if !path.is_file() {
+                continue;
+            }
+
+            if let Some(extension) = path.extension() {
+                if extension.to_string_lossy().to_lowercase() != "pgn" {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+
+            match self.load_pgn_file(&path) {
+                Ok(games) => {
+                    println!("Loaded {} games from {:?}", games, path);
+                    total_games += games;
+                    total_files += 1;
+                },
+                Err(e) => {
+                    eprintln!("Error loading {:?}: {:?}", path, e);
+                }
+            }
+        }
+
+        println!("Successfully loaded {} games from {} files", total_games, total_files);
+        Ok(total_games)
     }
 
     pub fn load_pgn_file<P: AsRef<Path>>(&mut self, file_path: P) -> io::Result<usize> {

@@ -244,12 +244,14 @@ pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     let mut template = UciProtocol::new();
-    let book_path = env::var("BOOK_PATH").unwrap_or_else(|_| "book.pgn".to_string());
-    println!("Loading opening book from {}", book_path);
+    let book_path = env::var("BOOK_PATH").unwrap_or_else(|_| "book".to_string());
+    println!("Loading opening books from {}", book_path);
+
+    let path = Path::new(&book_path);
 
     template.engine.set_book_enabled(true);
 
-    match template.engine.load_book(Path::new(&book_path)) {
+    match template.engine.load_book(path) {
         Ok(_) => println!("Opening book loaded successfully"),
         Err(e) => eprintln!("Failed to load opening book: {}", e),
     }

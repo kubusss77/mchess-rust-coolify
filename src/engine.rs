@@ -35,7 +35,12 @@ impl Engine {
 
     pub fn load_book(&mut self, path: &Path) -> std::io::Result<usize> {
         let mut book = OpeningBook::new();
-        let loaded_games = book.load_pgn_file(path)?;
+
+        let loaded_games = if path.is_dir() {
+            book.load_book_directory(path)?
+        } else {
+            book.load_pgn_file(path)?
+        };
         
         self.book = Some(book);
         Ok(loaded_games)
