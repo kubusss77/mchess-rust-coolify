@@ -499,35 +499,10 @@ impl Minimax {
         value
     }
 
-    pub fn evaluate_move(&mut self, m: &Move, board: &mut Board, depth: u8) -> f64 {
-        if self.move_evaluation_cache.contains_key(&m.hash()) {
-            return *self.move_evaluation_cache.get(&m.hash()).unwrap()
-        }
+    pub fn evaluate_move_base(m: &Move, board: &mut Board) -> f64 {
         let mut value = 0.0;
 
-        if let Some(node) = self.transposition_table.get(board.hash) {
-            if let Some(best_move) = &node.best_move {
-                if best_move == m {
-                    value += PV_MOVE;
-                }
-            }
-        }
-
         value += m.mvv_lva();
-
-        if !m.move_type.contains(&MoveType::Capture) {
-            if let Some(killer) = &self.killer_moves[depth as usize][0] {
-                if m == killer {
-                    value += KILLER_MOVE_VALUE;
-                }
-            }
-
-            if let Some(killer) = &self.killer_moves[depth as usize][1] {
-                if m == killer {
-                    value += KILLER_MOVE_VALUE - 1000.0;
-                }
-            }
-        }
 
         if m.move_type.contains(&MoveType::Promotion) {
             value += PROMOTION_VALUE;
@@ -557,6 +532,37 @@ impl Minimax {
 
             if (m.from.y as isize - rank as isize).abs() == 2 {
                 value += PAWN_DEVELOPMENT_BONUS;
+            }
+        }
+
+        value
+    }
+
+    pub fn evaluate_move(&mut self, m: &Move, board: &mut Board, depth: u8) -> f64 {
+        if self.move_evaluation_cache.contains_key(&m.hash()) {
+            return *self.move_evaluation_cache.get(&m.hash()).unwrap()
+        }
+        let mut value = Minimax::evaluate_move_base(m, board);
+
+        if let Some(node) = self.transposition_table.get(board.hash) {
+            if let Some(best_move) = &node.best_move {
+                if best_move == m {
+                    value += PV_MOVE;
+                }
+            }
+        }
+
+        if !m.move_type.contains(&MoveType::Capture) {
+            if let Some(killer) = &self.killer_moves[depth as usize][0] {
+                if m == killer {
+                    value += KILLER_MOVE_VALUE;
+                }
+            }
+
+            if let Some(killer) = &self.killer_moves[depth as usize][1] {
+                if m == killer {
+                    value += KILLER_MOVE_VALUE - 1000.0;
+                }
             }
         }
 

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
-use rand::seq::IndexedRandom;
+use rand::Rng;
 
-use crate::{board::{Board, ResultType}, r#const::MCTS_MAX_PLIES, evaluation::evaluate, moves::Move, piece::PieceColor};
+use crate::{board::{Board, ResultType}, r#const::MCTS_MAX_PLIES, evaluation::evaluate, moves::{Move, MoveType}, piece::PieceColor, search::Minimax};
 
 #[derive(Debug)]
 struct Node {
@@ -109,7 +109,13 @@ impl Mcts {
         if !current_node.expanded {
             let legal_moves = board.get_total_legal_moves(None);
 
-            if current_node.children.len() >= legal_moves.len() {
+            let mut scores: Vec<(Move, f64)> = legal_moves.into_iter()
+                .map(|m| (m.clone(), Minimax::evaluate_move_base(&m, board)))
+                .collect();
+
+            scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+            if current_node.children.len() >= scores.len() {
                 current_node.expanded = true;
                 return path;
             }
@@ -118,7 +124,7 @@ impl Mcts {
                 .filter_map(|child| child.m.clone())
                 .collect();
 
-            for m in legal_moves {
+            for (m, _) in scores {
                 if !tried_moves.contains(&m) {
                     let child = Node::new(Some(m.clone()));
 
@@ -147,27 +153,46 @@ impl Mcts {
                 break;
             }
 
-            let mut weighted_moves = Vec::new();
+            let mut move_weights: Vec<(Move, usize)> = Vec::with_capacity(legal_moves.len());
 
             for m in &legal_moves {
                 let mut weight = 1;
                 if m.captured.is_some() {
                     let val = m.mvv_lva();
-                    if val > 0.0 {
-                        weight += 2;
-                    }
+                    weight += val as usize;
                 }
 
-                for _ in 0..weight {
-                    weighted_moves.push(m.clone());
+                if m.move_type.contains(&MoveType::Check) {
+                    weight += 2;
                 }
+
+                if m.move_type.contains(&MoveType::Promotion) {
+                    weight += 4;                   
+                }
+
+                move_weights.push((m.clone(), weight));
             }
 
-            let random_move = weighted_moves.choose(&mut rng)
-                .or_else(|| legal_moves.get(0))
-                .expect("No moves");
+            let total_weight: usize = move_weights.iter().map(|(_, w)| w).sum();
 
-            board.make_move(random_move);
+            let m = if total_weight > 0 {
+                let mut rnd = rng.random_range(0..total_weight);
+
+                let m = move_weights.iter().find(|(_, weight)| {
+                    if rnd < *weight {
+                        true
+                    } else {
+                        rnd -= *weight;
+                        false
+                    }
+                });
+
+                m.map(|(m, _)| m.clone())
+            } else {
+                None
+            }.unwrap_or_else(|| legal_moves[0].clone());
+
+            board.make_move(&m);
             plies += 1;
         }
 

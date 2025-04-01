@@ -8,8 +8,8 @@ use axum::{
     routing::post,
 };
 use serde::{Deserialize, Serialize};
-use std::{io::Write, path::Path, sync::{Arc, Mutex}};
-use tokio::net::TcpListener;
+use std::{io::Write, path::Path, sync::{Arc, Mutex}, time::Duration};
+use tokio::{net::TcpListener, time::timeout};
 use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::env;
@@ -112,19 +112,35 @@ async fn connection(socket: WebSocket, state: Arc<AppState>) {
     let client_id = uuid::Uuid::new_v4().to_string();
 
     {
-        let mut protocols = state.protocols.lock().unwrap();
-        let template = state.template.lock().unwrap();
+        match timeout(Duration::from_secs(5), async {
+            let mut protocols = match state.protocols.lock() {
+                Ok(p) => p,
+                Err(e) => e.into_inner(),
+            };
+            
+            let template = match state.template.lock() {
+                Ok(t) => t,
+                Err(e) => e.into_inner(),
+            };
 
-        let mut new_protocol = UciProtocol::new();
+            let mut new_protocol = UciProtocol::new();
+            new_protocol.engine.set_book_enabled(true);
 
-        new_protocol.engine.set_book_enabled(true);
+            if let Some(book) = template.engine.book.as_ref() {
+                new_protocol.engine.book = Some(book.clone());
+            }
 
-        if let Some(book) = template.engine.book.as_ref() {
-            new_protocol.engine.book = Some(book.clone());
+            protocols.insert(client_id.clone(), new_protocol);
+        }).await {
+            Ok(_) => {},
+            Err(_) => {
+                eprintln!("Timeout initializing client {}", client_id);
+                return;
+            }
         }
-
-        protocols.insert(client_id.clone(), new_protocol);
     }
+
+    println!("connection established with {}", client_id);
 
     let _ = sender.send(Message::Text(format!("established:{}", client_id).into())).await;
 
@@ -133,16 +149,24 @@ async fn connection(socket: WebSocket, state: Arc<AppState>) {
             if text.trim().is_empty() {
                 continue;
             }
+
+            let state = Arc::clone(&state);
+            let client_id_clone = client_id.clone();
+            let text = text.clone();
             
-            let responses = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                process_command(&state, &client_id, &text)
-            })) {
-                Ok(future) => match tokio::task::block_in_place(|| futures::executor::block_on(future)) {
-                    responses => responses,
+            let responses = match timeout(Duration::from_secs(30), 
+                tokio::task::spawn(async move {
+                    process_command(&state, &client_id_clone, &text).await
+                })
+            ).await {
+                Ok(Ok(responses)) => responses,
+                Ok(Err(e)) => {
+                    eprintln!("Task error for client {}: {:?}", client_id, e);
+                    vec!["info string Internal server error".to_string()]
                 },
-                Err(e) => {
-                    eprintln!("Panic in command processing for {}: {:?}", client_id, e);
-                    vec!["info string Internal server error occured".to_string()]
+                Err(_) => {
+                    eprintln!("Command timed out for client {}", client_id);
+                    vec!["info string Processing timed out".to_string()]
                 }
             };
 
@@ -156,12 +180,39 @@ async fn connection(socket: WebSocket, state: Arc<AppState>) {
         }
     }
 
-    let mut protocols = state.protocols.lock().unwrap();
-    protocols.remove(&client_id);
+    match timeout(Duration::from_secs(5), async {
+        let mut protocols = match state.protocols.lock() {
+            Ok(p) => p,
+            Err(e) => e.into_inner(),
+        };
+        protocols.remove(&client_id);
+    }).await {
+        Ok(_) => {},
+        Err(_) => eprintln!("Timeout removing client {}", client_id),
+    }
 }
 
 async fn process_command(state: &Arc<AppState>, client_id: &str, command: &str) -> Vec<String> {
-    let mut protocols = state.protocols.lock().unwrap();
+    let protocols_result: Result<std::sync::MutexGuard<'_, HashMap<String, UciProtocol>>, _> = match timeout(Duration::from_secs(5), async {
+        match state.protocols.lock() {
+            Ok(protocols) => Ok::<_, std::sync::PoisonError<std::sync::MutexGuard<'_, HashMap<String, UciProtocol>>>>(protocols),
+            Err(poisoned) => {
+                eprintln!("Recovered from poisoned protocols for {}", client_id);
+                Ok(poisoned.into_inner())
+            }
+        }
+    }).await {
+        Ok(result) => result,
+        Err(_) => {
+            eprintln!("Timeout acquiring lock for client {}", client_id);
+            return vec!["info string Server busy, try again later".to_string()];
+        }
+    };
+    
+    let mut protocols = match protocols_result {
+        Ok(protocols) => protocols,
+        Err(_) => return vec!["info string Internal server error".to_string()],
+    };
     let protocol = protocols.entry(client_id.to_string()).or_insert_with(UciProtocol::new);
 
     match command.trim() {
