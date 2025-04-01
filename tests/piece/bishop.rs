@@ -8,7 +8,7 @@ fn test_bishop_basic_moves() {
     let pos = alg("d4");
     let bishop = board.get_piece_at(pos.y, pos.x).unwrap();
     let moves = board.get_legal_moves(bishop.index);
-    assert_eq!(moves.len(), 13);
+    assert_eq!(moves.len(), 13, "Bishop in the center should have 13 moves");
 }
 
 #[test]
@@ -26,7 +26,7 @@ fn test_orthogonal_pinned_bishop() {
     let pos = alg("c3");
     let bishop = board.get_piece_at(pos.y, pos.x).unwrap();
     let moves = board.get_legal_moves(bishop.index);
-    assert_eq!(moves.len(), 0);
+    assert_eq!(moves.len(), 0, "Orthogonally pinned bishop shoulnd't have any moves");
 }
 
 #[test]

@@ -8,7 +8,7 @@ fn test_king_basic_moves() {
     let pos = alg("d4");
     let king = board.get_piece_at(pos.y, pos.x).unwrap();
     let moves = board.get_legal_moves(king.index);
-    assert_eq!(moves.len(), 8);
+    assert_eq!(moves.len(), 8, "King in the center should have 8 moves");
 }
 
 #[test]

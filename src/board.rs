@@ -481,13 +481,6 @@ impl Board {
             return Vec::with_capacity(0);
         }
 
-        // if let Some(cached_moves) = self.moves_cache.get(&piece_index) {
-        //     if !cached_moves.is_empty() ||
-        //        !self.move_availability.get(&piece_index).unwrap_or(&false) {
-        //         return cached_moves.clone();
-        //     }
-        // }
-
         let piece = self.pieces.get(&piece_index).unwrap();
         
         let mut moves = match piece.piece_type {
@@ -504,9 +497,6 @@ impl Board {
                 m.move_type.extend([MoveType::Check]);
             }
         }
-
-        // self.moves_cache.insert(piece_index, moves.clone());
-        // self.move_availability.insert(piece_index, moves.len() > 0);
 
         moves
     }

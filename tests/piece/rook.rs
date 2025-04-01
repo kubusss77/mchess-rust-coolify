@@ -21,7 +21,7 @@ fn test_diagonal_pinned_rook() {
 }
 
 #[test]
-fn test_orthogonally_pinned_rook() {
+fn test_orthogonal_pinned_rook() {
     let board = Board::from_fen("4k3/4q3/8/8/8/8/4R3/4K3 w - - 0 1");
     let pos = alg("e2");
     let rook = board.get_piece_at(pos.y, pos.x).unwrap();

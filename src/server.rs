@@ -134,7 +134,17 @@ async fn connection(socket: WebSocket, state: Arc<AppState>) {
                 continue;
             }
             
-            let responses = process_command(&state, &client_id, &text).await;
+            let responses = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                process_command(&state, &client_id, &text)
+            })) {
+                Ok(future) => match tokio::task::block_in_place(|| futures::executor::block_on(future)) {
+                    responses => responses,
+                },
+                Err(e) => {
+                    eprintln!("Panic in command processing for {}: {:?}", client_id, e);
+                    vec!["info string Internal server error occured".to_string()]
+                }
+            };
 
             for response in responses {
                 if let Err(_) = sender.send(Message::Text(response.into())).await {
