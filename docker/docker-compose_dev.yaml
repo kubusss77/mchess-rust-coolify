@@ -1,0 +1,21 @@
+version: "3.8"
+services:
+  rust-app:
+    image: rust:latest
+    container_name: rust-app
+    working_dir: /app
+    ports:
+      - "3100:3100"
+    command: >
+      sh -c "if [ -d /app/.git ]; then \
+        cd /app && git pull; \
+      else \
+        apt-get update && \
+        apt-get install -y python3-pip && \
+        pip3 install gdown && \
+        git clone --branch main https://github.com/kubusss77/mchess-rust-coolify.git /app; \
+        gdown --fuzzy 'https://drive.google.com/file/d/1WOp42nxAc38ifRO23n4NGL6a1S2K_0CT/view'
+      fi && \
+      cd /app && \
+      cargo build --release && \
+      cargo run --release"

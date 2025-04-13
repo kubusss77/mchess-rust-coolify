@@ -1,6 +1,4 @@
 target/
 flamegraph.svg
-*.pgn
 .env
 .DS_Store
-book/
