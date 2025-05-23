@@ -313,7 +313,7 @@ pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let app = Router::new()
-        .route("/ws", get(websocket_handler))
+        .route("", get(websocket_handler))
         .route("/uci", post(command))
         .with_state(state);
 
